@@ -33,8 +33,7 @@ api.interceptors.response.use(
       // Unauthorized - удаляем токен и редиректим на логин
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      // Можно добавить редирект на login
-      // window.location.href = '/login';
+      window.location.reload();
     }
     return Promise.reject(error);
   }
@@ -52,7 +51,9 @@ export const logsApi = {
     search?: string;
   }) => {
     const response = await api.get('/logs', { params });
-    return response.data;
+    // API может возвращать как массив, так и объект с полем logs
+    const data = response.data;
+    return Array.isArray(data) ? data : (data.logs || data.data || []);
   },
 
   getOne: async (id: string) => {
@@ -93,7 +94,8 @@ export const incidentsApi = {
     severity?: string;
   }) => {
     const response = await api.get('/incidents', { params });
-    return response.data;
+    const data = response.data;
+    return Array.isArray(data) ? data : (data.incidents || data.data || []);
   },
 
   getOne: async (id: string) => {
@@ -148,24 +150,28 @@ export const analyticsApi = {
     const response = await api.get('/analytics/time-series', {
       params: { hours },
     });
-    return response.data;
+    const data = response.data;
+    return Array.isArray(data) ? data : (data.data || []);
   },
 
   getSources: async () => {
     const response = await api.get('/analytics/sources');
-    return response.data;
+    const data = response.data;
+    return Array.isArray(data) ? data : (data.data || []);
   },
 
   getSeverity: async () => {
     const response = await api.get('/analytics/severity');
-    return response.data;
+    const data = response.data;
+    return Array.isArray(data) ? data : (data.data || []);
   },
 
   getTopIPs: async (limit: number = 10) => {
     const response = await api.get('/analytics/top-ips', {
       params: { limit },
     });
-    return response.data;
+    const data = response.data;
+    return Array.isArray(data) ? data : (data.data || []);
   },
 };
 
@@ -175,7 +181,8 @@ export const analyticsApi = {
 export const alertsApi = {
   getAll: async () => {
     const response = await api.get('/alerts');
-    return response.data;
+    const data = response.data;
+    return Array.isArray(data) ? data : (data.alerts || data.data || []);
   },
 
   getOne: async (id: string) => {

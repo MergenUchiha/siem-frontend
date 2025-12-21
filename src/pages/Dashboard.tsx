@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Activity, AlertTriangle, Shield, CheckCircle, BarChart3, Zap, TrendingUp, Clock } from 'lucide-react';
-import { Log, Incident } from '../types';
-import { generateRealtimeMetrics, generateTimeSeriesData } from '../utils/mockData';
+import { Log, Incident, DashboardMetrics } from '../types';
 import MetricCard from '../components/dashboard/MetricCard';
+import { analyticsApi } from '../services/api';
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend 
@@ -14,16 +14,49 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
-  const [metrics, setMetrics] = useState(generateRealtimeMetrics());
-  const [timeSeriesData] = useState(generateTimeSeriesData(12));
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
+    totalEvents: 0,
+    criticalAlerts: 0,
+    activeIncidents: 0,
+    securityScore: 0,
+    threatsBlocked: 0,
+    lastUpdate: new Date().toISOString()
+  });
+  const [timeSeriesData, setTimeSeriesData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Update metrics every 5 seconds
+  // Load metrics from API
   useEffect(() => {
-    const interval = setInterval(() => {
-      setMetrics(generateRealtimeMetrics());
-    }, 5000);
+    const loadMetrics = async () => {
+      try {
+        const [dashboardData, timeSeriesResponse] = await Promise.all([
+          analyticsApi.getDashboard(),
+          analyticsApi.getTimeSeries(24)
+        ]);
+
+        setMetrics(dashboardData);
+        setTimeSeriesData(timeSeriesResponse);
+      } catch (error) {
+        console.error('Failed to load dashboard metrics:', error);
+        // Fallback to calculated metrics
+        setMetrics({
+          totalEvents: logs.length,
+          criticalAlerts: logs.filter(l => l.severity === 'critical').length,
+          activeIncidents: incidents.filter(i => i.status === 'open' || i.status === 'investigating').length,
+          securityScore: 87,
+          threatsBlocked: logs.filter(l => l.severity === 'critical' || l.severity === 'high').length,
+          lastUpdate: new Date().toISOString()
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadMetrics();
+    // Update metrics every 30 seconds
+    const interval = setInterval(loadMetrics, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [logs, incidents]);
 
   // Memoized calculations for better performance
   const severityCounts = useMemo(() => {
@@ -75,6 +108,17 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
     };
     return colors[status] || colors.open;
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-slideIn">
@@ -128,7 +172,7 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
         <div className="glass rounded-xl p-6 hover:border-cyan-500/50 transition-smooth">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
             <TrendingUp className="w-5 h-5 mr-2 text-cyan-400" />
-            Events Timeline (Last 12 Hours)
+            Events Timeline (Last 24 Hours)
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={timeSeriesData}>
@@ -170,11 +214,11 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
               />
               <Line 
                 type="monotone" 
-                dataKey="blocked" 
-                stroke="#10b981" 
+                dataKey="critical" 
+                stroke="#f97316" 
                 strokeWidth={2}
                 dot={{ r: 2 }}
-                name="Blocked"
+                name="Critical"
               />
             </LineChart>
           </ResponsiveContainer>

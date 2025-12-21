@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, Bell, Search, RefreshCw, Wifi, X } from 'lucide-react';
+import { Menu, Bell, Search, RefreshCw, Wifi, X, LogOut, User } from 'lucide-react';
 
 interface HeaderProps {
   setSidebarOpen: (open: boolean) => void;
   onRefresh?: () => void;
+  onLogout?: () => void;
 }
 
 interface Notification {
@@ -15,40 +16,38 @@ interface Notification {
   read: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ setSidebarOpen, onRefresh }) => {
+const Header: React.FC<HeaderProps> = ({ setSidebarOpen, onRefresh, onLogout }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      title: 'Critical Alert',
-      message: 'Brute force attack detected on admin panel',
-      type: 'critical',
-      time: '2 min ago',
-      read: false
-    },
-    {
-      id: '2',
-      title: 'High Priority',
-      message: 'Unusual data transfer volume detected',
-      type: 'warning',
-      time: '15 min ago',
-      read: false
-    },
-    {
-      id: '3',
-      title: 'Info',
-      message: 'System update completed successfully',
-      type: 'info',
-      time: '1 hour ago',
-      read: true
+  // Получаем данные пользователя
+  const userString = localStorage.getItem('user');
+  const user = userString ? JSON.parse(userString) : { name: 'User', email: 'user@siem.local', role: 'analyst' };
+
+  // Загрузка уведомлений из localStorage при монтировании
+  useEffect(() => {
+    const savedNotifications = localStorage.getItem('notifications');
+    if (savedNotifications) {
+      try {
+        setNotifications(JSON.parse(savedNotifications));
+      } catch (e) {
+        console.error('Failed to parse notifications:', e);
+      }
     }
-  ]);
+  }, []);
+
+  // Сохранение уведомлений в localStorage при изменении
+  useEffect(() => {
+    if (notifications.length > 0) {
+      localStorage.setItem('notifications', JSON.stringify(notifications));
+    }
+  }, [notifications]);
 
   // Update time every minute
   useEffect(() => {
@@ -68,11 +67,30 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen, onRefresh }) => {
       if (e.key === 'Escape') {
         setShowSearch(false);
         setShowNotifications(false);
+        setShowUserMenu(false);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Добавление нового уведомления (можно вызывать из WebSocket)
+  const addNotification = (notification: Omit<Notification, 'id' | 'read'>) => {
+    const newNotification: Notification = {
+      ...notification,
+      id: Date.now().toString(),
+      read: false
+    };
+    setNotifications(prev => [newNotification, ...prev.slice(0, 19)]); // Храним максимум 20
+  };
+
+  // Экспортируем функцию для использования в App.tsx
+  React.useEffect(() => {
+    (window as any).addNotification = addNotification;
+    return () => {
+      delete (window as any).addNotification;
+    };
   }, []);
 
   const handleRefresh = () => {
@@ -81,10 +99,26 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen, onRefresh }) => {
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
+  const handleLogout = () => {
+    // Очищаем уведомления при logout
+    localStorage.removeItem('notifications');
+    setNotifications([]);
+    if (onLogout) onLogout();
+  };
+
   const markAsRead = (id: string) => {
     setNotifications(notifications.map(n => 
       n.id === id ? { ...n, read: true } : n
     ));
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(notifications.map(n => ({ ...n, read: true })));
+  };
+
+  const clearAll = () => {
+    localStorage.removeItem('notifications');
+    setNotifications([]);
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -175,31 +209,53 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen, onRefresh }) => {
                   <div className="absolute right-0 mt-2 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto">
                     <div className="p-4 border-b border-gray-700 flex items-center justify-between">
                       <h3 className="text-white font-semibold">Notifications</h3>
-                      <span className="text-xs text-gray-400">{unreadCount} unread</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-400">{unreadCount} unread</span>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={markAllAsRead}
+                            className="text-xs text-cyan-400 hover:text-cyan-300"
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="divide-y divide-gray-700">
-                      {notifications.map(notification => (
-                        <div
-                          key={notification.id}
-                          onClick={() => markAsRead(notification.id)}
-                          className={`p-4 hover:bg-gray-800 cursor-pointer transition-colors ${getNotificationColor(notification.type)} ${notification.read ? 'opacity-60' : ''}`}
-                        >
-                          <div className="flex items-start justify-between mb-1">
-                            <h4 className="text-white font-medium text-sm">{notification.title}</h4>
-                            {!notification.read && (
-                              <div className="w-2 h-2 bg-cyan-400 rounded-full" />
-                            )}
-                          </div>
-                          <p className="text-gray-400 text-xs mb-2">{notification.message}</p>
-                          <span className="text-gray-500 text-xs">{notification.time}</span>
+                    {notifications.length > 0 ? (
+                      <>
+                        <div className="divide-y divide-gray-700">
+                          {notifications.map(notification => (
+                            <div
+                              key={notification.id}
+                              onClick={() => markAsRead(notification.id)}
+                              className={`p-4 hover:bg-gray-800 cursor-pointer transition-colors ${getNotificationColor(notification.type)} ${notification.read ? 'opacity-60' : ''}`}
+                            >
+                              <div className="flex items-start justify-between mb-1">
+                                <h4 className="text-white font-medium text-sm">{notification.title}</h4>
+                                {!notification.read && (
+                                  <div className="w-2 h-2 bg-cyan-400 rounded-full" />
+                                )}
+                              </div>
+                              <p className="text-gray-400 text-xs mb-2">{notification.message}</p>
+                              <span className="text-gray-500 text-xs">{notification.time}</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                    <div className="p-3 border-t border-gray-700 text-center">
-                      <button className="text-cyan-400 text-sm hover:text-cyan-300 transition-colors">
-                        View all notifications
-                      </button>
-                    </div>
+                        <div className="p-3 border-t border-gray-700 text-center">
+                          <button
+                            onClick={clearAll}
+                            className="text-red-400 text-sm hover:text-red-300 transition-colors"
+                          >
+                            Clear all
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-8 text-center">
+                        <Bell className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                        <p className="text-gray-400 text-sm">No notifications</p>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -212,6 +268,45 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen, onRefresh }) => {
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 <span className="text-sm text-green-400 font-medium">Online</span>
               </div>
+            </div>
+
+            {/* User Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center space-x-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-cyan-500/50 transition-all"
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center">
+                  <User className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-sm text-white hidden lg:block">{user.name}</span>
+              </button>
+
+              {/* User Dropdown */}
+              {showUserMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowUserMenu(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-56 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50">
+                    <div className="p-4 border-b border-gray-700">
+                      <p className="text-white font-medium">{user.name}</p>
+                      <p className="text-xs text-gray-400">{user.email}</p>
+                      <p className="text-xs text-cyan-400 mt-1 capitalize">{user.role}</p>
+                    </div>
+                    <div className="p-2">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center space-x-2 px-3 py-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Time Display */}
@@ -267,7 +362,6 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen, onRefresh }) => {
               <p className="text-gray-400 text-sm text-center">
                 {searchQuery ? `Searching for "${searchQuery}"...` : 'Start typing to search'}
               </p>
-              {/* Here you can add search results */}
             </div>
           </div>
         </div>

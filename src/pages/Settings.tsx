@@ -1,15 +1,37 @@
-import React, { useState } from 'react';
-import { Settings as SettingsIcon, User, Shield, Bell, Database, Save } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings as SettingsIcon, User, Shield, Bell, Database, Save, Check } from 'lucide-react';
+
+interface SettingsState {
+  notifications: {
+    email: boolean;
+    slack: boolean;
+    push: boolean;
+  };
+  security: {
+    twoFactor: boolean;
+    sessionTimeout: number;
+  };
+  display: {
+    refreshInterval: number;
+    itemsPerPage: number;
+  };
+  dataRetention: {
+    logRetention: number;
+    incidentRetention: number;
+  };
+}
 
 const Settings: React.FC = () => {
-  const [settings, setSettings] = useState({
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  
+  const [settings, setSettings] = useState<SettingsState>({
     notifications: {
       email: true,
-      slack: true,
+      slack: false,
       push: false
     },
     security: {
-      twoFactor: true,
+      twoFactor: false,
       sessionTimeout: 30
     },
     display: {
@@ -22,11 +44,69 @@ const Settings: React.FC = () => {
     }
   });
 
+  const [userProfile, setUserProfile] = useState({
+    name: user.name || 'Admin User',
+    email: user.email || 'admin@siem.local',
+    role: user.role || 'admin',
+    department: 'Security Operations'
+  });
+
   const [saved, setSaved] = useState(false);
 
+  // Загрузка настроек из localStorage при монтировании
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('app_settings');
+    if (savedSettings) {
+      try {
+        setSettings(JSON.parse(savedSettings));
+      } catch (e) {
+        console.error('Failed to load settings:', e);
+      }
+    }
+
+    const savedProfile = localStorage.getItem('user_profile');
+    if (savedProfile) {
+      try {
+        setUserProfile(JSON.parse(savedProfile));
+      } catch (e) {
+        console.error('Failed to load profile:', e);
+      }
+    }
+  }, []);
+
   const handleSave = () => {
+    // Сохраняем настройки в localStorage
+    localStorage.setItem('app_settings', JSON.stringify(settings));
+    localStorage.setItem('user_profile', JSON.stringify(userProfile));
+    
+    // Обновляем данные пользователя в localStorage
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const updatedUser = {
+      ...currentUser,
+      name: userProfile.name,
+      email: userProfile.email
+    };
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    
     setSaved(true);
+    
+    // Показываем уведомление
+    if ((window as any).addNotification) {
+      (window as any).addNotification({
+        title: 'Settings Saved',
+        message: 'Your preferences have been updated successfully',
+        type: 'info',
+        time: 'Just now'
+      });
+    }
+    
     setTimeout(() => setSaved(false), 3000);
+  };
+
+  const handleReset = () => {
+    localStorage.removeItem('app_settings');
+    localStorage.removeItem('user_profile');
+    window.location.reload();
   };
 
   return (
@@ -37,17 +117,25 @@ const Settings: React.FC = () => {
           <h2 className="text-2xl font-bold text-white mb-2">Settings</h2>
           <p className="text-gray-400">Configure system preferences and security options</p>
         </div>
-        <button
-          onClick={handleSave}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
-            saved
-              ? 'bg-green-500 text-white'
-              : 'bg-cyan-500 text-white hover:bg-cyan-600'
-          }`}
-        >
-          <Save className="w-5 h-5" />
-          <span>{saved ? 'Saved!' : 'Save Changes'}</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleReset}
+            className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
+          >
+            Reset to Default
+          </button>
+          <button
+            onClick={handleSave}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
+              saved
+                ? 'bg-green-500 text-white'
+                : 'bg-cyan-500 text-white hover:bg-cyan-600'
+            }`}
+          >
+            {saved ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />}
+            <span>{saved ? 'Saved!' : 'Save Changes'}</span>
+          </button>
+        </div>
       </div>
 
       {/* User Profile */}
@@ -61,7 +149,8 @@ const Settings: React.FC = () => {
             <label className="block text-sm text-gray-400 mb-2">Full Name</label>
             <input
               type="text"
-              defaultValue="Admin User"
+              value={userProfile.name}
+              onChange={(e) => setUserProfile({ ...userProfile, name: e.target.value })}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
             />
           </div>
@@ -69,23 +158,29 @@ const Settings: React.FC = () => {
             <label className="block text-sm text-gray-400 mb-2">Email</label>
             <input
               type="email"
-              defaultValue="admin@siem.local"
+              value={userProfile.email}
+              onChange={(e) => setUserProfile({ ...userProfile, email: e.target.value })}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
             />
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-2">Role</label>
-            <select className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500">
-              <option>Administrator</option>
-              <option>Analyst</option>
-              <option>Viewer</option>
+            <select 
+              value={userProfile.role}
+              onChange={(e) => setUserProfile({ ...userProfile, role: e.target.value })}
+              className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+            >
+              <option value="admin">Administrator</option>
+              <option value="analyst">Analyst</option>
+              <option value="viewer">Viewer</option>
             </select>
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-2">Department</label>
             <input
               type="text"
-              defaultValue="Security Operations"
+              value={userProfile.department}
+              onChange={(e) => setUserProfile({ ...userProfile, department: e.target.value })}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
             />
           </div>
@@ -203,7 +298,7 @@ const Settings: React.FC = () => {
               value={settings.security.sessionTimeout}
               onChange={(e) => setSettings({
                 ...settings,
-                security: { ...settings.security, sessionTimeout: parseInt(e.target.value) }
+                security: { ...settings.security, sessionTimeout: parseInt(e.target.value) || 30 }
               })}
               className="w-full md:w-64 px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
             />
@@ -268,7 +363,7 @@ const Settings: React.FC = () => {
               value={settings.dataRetention.logRetention}
               onChange={(e) => setSettings({
                 ...settings,
-                dataRetention: { ...settings.dataRetention, logRetention: parseInt(e.target.value) }
+                dataRetention: { ...settings.dataRetention, logRetention: parseInt(e.target.value) || 90 }
               })}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
             />
@@ -281,7 +376,7 @@ const Settings: React.FC = () => {
               value={settings.dataRetention.incidentRetention}
               onChange={(e) => setSettings({
                 ...settings,
-                dataRetention: { ...settings.dataRetention, incidentRetention: parseInt(e.target.value) }
+                dataRetention: { ...settings.dataRetention, incidentRetention: parseInt(e.target.value) || 365 }
               })}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
             />

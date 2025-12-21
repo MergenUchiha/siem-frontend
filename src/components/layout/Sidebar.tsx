@@ -16,6 +16,10 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) => {
+  // Получаем данные пользователя из localStorage
+  const userString = localStorage.getItem('user');
+  const user = userString ? JSON.parse(userString) : { name: 'User', email: 'user@siem.local', role: 'analyst' };
+
   const menuItems: MenuItem[] = [
     { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
     { id: 'logs', icon: Database, label: 'Log Viewer' },
@@ -150,8 +154,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, sidebarOpen,
               <Users className="w-5 h-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">Admin User</p>
-              <p className="text-xs text-gray-400 truncate">admin@siem.local</p>
+              <p className="text-sm font-medium text-white truncate">{user.name}</p>
+              <p className="text-xs text-gray-400 truncate">{user.email}</p>
             </div>
           </div>
         </div>

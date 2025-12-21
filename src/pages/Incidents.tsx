@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Eye, CheckCircle, Clock, Filter, Tag } from 'lucide-react';
+import { AlertTriangle, Eye, CheckCircle, Clock, Filter, Tag, Plus, Edit, Trash2 } from 'lucide-react';
 import { Incident } from '../types';
+import { incidentsApi } from '../services/api';
 
 interface IncidentsProps {
   incidents: Incident[];
+  onRefresh?: () => void;
 }
 
-const Incidents: React.FC<IncidentsProps> = ({ incidents }) => {
+const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const filteredIncidents = incidents.filter(incident => {
     const matchesStatus = statusFilter === 'all' || incident.status === statusFilter;
@@ -35,6 +42,76 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents }) => {
     open: incidents.filter(i => i.status === 'open').length,
     investigating: incidents.filter(i => i.status === 'investigating').length,
     resolved: incidents.filter(i => i.status === 'resolved').length
+  };
+
+  const handleCreateIncident = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreating(true);
+
+    const formData = new FormData(e.target as HTMLFormElement);
+    const affectedSystems = (formData.get('affectedSystems') as string).split(',').map(s => s.trim());
+    const tags = (formData.get('tags') as string).split(',').map(s => s.trim()).filter(Boolean);
+
+    const incidentData = {
+      title: formData.get('title') as string,
+      severity: formData.get('severity') as string,
+      affectedSystems,
+      description: formData.get('description') as string,
+      assignedTo: formData.get('assignedTo') as string || undefined,
+      tags: tags.length > 0 ? tags : undefined
+    };
+
+    try {
+      await incidentsApi.create(incidentData);
+      setShowCreateModal(false);
+      if (onRefresh) onRefresh();
+      alert('Incident created successfully!');
+    } catch (error) {
+      console.error('Failed to create incident:', error);
+      alert('Failed to create incident');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleUpdateIncident = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedIncident) return;
+
+    setIsUpdating(true);
+
+    const formData = new FormData(e.target as HTMLFormElement);
+    const updateData = {
+      status: formData.get('status') as string,
+      assignedTo: formData.get('assignedTo') as string || undefined,
+      description: formData.get('description') as string || undefined,
+    };
+
+    try {
+      await incidentsApi.update(selectedIncident.id, updateData);
+      setShowUpdateModal(false);
+      setSelectedIncident(null);
+      if (onRefresh) onRefresh();
+      alert('Incident updated successfully!');
+    } catch (error) {
+      console.error('Failed to update incident:', error);
+      alert('Failed to update incident');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteIncident = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this incident?')) return;
+
+    try {
+      await incidentsApi.delete(id);
+      if (onRefresh) onRefresh();
+      alert('Incident deleted successfully!');
+    } catch (error) {
+      console.error('Failed to delete incident:', error);
+      alert('Failed to delete incident');
+    }
   };
 
   return (
@@ -77,31 +154,41 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents }) => {
 
       {/* Filters */}
       <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
-        <div className="flex items-center space-x-4">
-          <Filter className="w-5 h-5 text-gray-400" />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-4">
+            <Filter className="w-5 h-5 text-gray-400" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
+            >
+              <option value="all">All Statuses</option>
+              <option value="open">Open</option>
+              <option value="investigating">Investigating</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+            
+            <select
+              value={severityFilter}
+              onChange={(e) => setSeverityFilter(e.target.value)}
+              className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
+            >
+              <option value="all">All Severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg hover:bg-green-500/30 transition-all"
           >
-            <option value="all">All Statuses</option>
-            <option value="open">Open</option>
-            <option value="investigating">Investigating</option>
-            <option value="resolved">Resolved</option>
-            <option value="closed">Closed</option>
-          </select>
-          
-          <select
-            value={severityFilter}
-            onChange={(e) => setSeverityFilter(e.target.value)}
-            className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
-          >
-            <option value="all">All Severities</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
+            <Plus className="w-4 h-4" />
+            <span>Create Incident</span>
+          </button>
         </div>
       </div>
 
@@ -110,7 +197,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents }) => {
         {filteredIncidents.map(incident => (
           <div 
             key={incident.id} 
-            className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6 hover:border-cyan-500/50 transition-all cursor-pointer group"
+            className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6 hover:border-cyan-500/50 transition-all group"
           >
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
@@ -126,6 +213,27 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents }) => {
                   </span>
                 </div>
                 <p className="text-gray-400 text-sm">{incident.description}</p>
+              </div>
+
+              <div className="flex items-center space-x-2 ml-4">
+                <button
+                  onClick={() => {
+                    setSelectedIncident(incident);
+                    setShowUpdateModal(true);
+                  }}
+                  className="p-2 bg-gray-700 text-gray-400 rounded-lg hover:bg-gray-600 hover:text-white transition-all"
+                  title="Edit"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                
+                <button
+                  onClick={() => handleDeleteIncident(incident.id)}
+                  className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-all"
+                  title="Delete"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
             
@@ -188,6 +296,165 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents }) => {
           <CheckCircle className="w-16 h-16 text-gray-600 mx-auto mb-4" />
           <p className="text-gray-400 text-lg">No incidents found</p>
           <p className="text-gray-500 text-sm mt-2">Try adjusting your filters</p>
+        </div>
+      )}
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-y-auto p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md my-8">
+            <h3 className="text-xl font-bold text-white mb-4">Create New Incident</h3>
+            <form onSubmit={handleCreateIncident} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Title</label>
+                <input
+                  name="title"
+                  type="text"
+                  required
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                  placeholder="Incident title"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Severity</label>
+                <select
+                  name="severity"
+                  required
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Affected Systems (comma-separated)</label>
+                <input
+                  name="affectedSystems"
+                  type="text"
+                  required
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                  placeholder="Web Server, Database"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Description</label>
+                <textarea
+                  name="description"
+                  required
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                  placeholder="Incident description..."
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Assigned To (Optional)</label>
+                <input
+                  name="assignedTo"
+                  type="email"
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                  placeholder="user@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Tags (comma-separated, optional)</label>
+                <input
+                  name="tags"
+                  type="text"
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                  placeholder="malware, network, critical"
+                />
+              </div>
+
+              <div className="flex items-center space-x-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className="flex-1 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-all disabled:opacity-50"
+                >
+                  {isCreating ? 'Creating...' : 'Create Incident'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Update Modal */}
+      {showUpdateModal && selectedIncident && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold text-white mb-4">Update Incident</h3>
+            <form onSubmit={handleUpdateIncident} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Status</label>
+                <select
+                  name="status"
+                  defaultValue={selectedIncident.status}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="open">Open</option>
+                  <option value="investigating">Investigating</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Assigned To</label>
+                <input
+                  name="assignedTo"
+                  type="email"
+                  defaultValue={selectedIncident.assignedTo}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                  placeholder="user@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Description</label>
+                <textarea
+                  name="description"
+                  defaultValue={selectedIncident.description}
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex items-center space-x-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={isUpdating}
+                  className="flex-1 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-all disabled:opacity-50"
+                >
+                  {isUpdating ? 'Updating...' : 'Update Incident'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUpdateModal(false);
+                    setSelectedIncident(null);
+                  }}
+                  className="flex-1 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
