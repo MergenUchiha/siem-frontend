@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Bell, Plus, Edit, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface AlertRule {
   id: string;
@@ -12,6 +13,7 @@ interface AlertRule {
 }
 
 const Alerts: React.FC = () => {
+  const { t } = useLanguage();
   const [alerts, setAlerts] = useState<AlertRule[]>([
     {
       id: '1',
@@ -81,37 +83,34 @@ const Alerts: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white mb-2">Alert Rules</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">{t.alerts.title}</h2>
           <p className="text-gray-400">
-            Manage detection rules and notification settings
+            {t.alerts.manageRules}
           </p>
         </div>
         <button className="flex items-center space-x-2 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-all">
           <Plus className="w-5 h-5" />
-          <span>New Alert Rule</span>
+          <span>{t.alerts.newAlertRule}</span>
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
-          <p className="text-gray-400 text-sm mb-2">Total Rules</p>
+          <p className="text-gray-400 text-sm mb-2">{t.alerts.totalRules}</p>
           <p className="text-3xl font-bold text-white">{alerts.length}</p>
         </div>
         <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6">
-          <p className="text-green-400 text-sm mb-2">Active Rules</p>
+          <p className="text-green-400 text-sm mb-2">{t.alerts.activeRules}</p>
           <p className="text-3xl font-bold text-white">{enabledCount}</p>
         </div>
         <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
-          <p className="text-gray-400 text-sm mb-2">Inactive Rules</p>
+          <p className="text-gray-400 text-sm mb-2">{t.alerts.inactiveRules}</p>
           <p className="text-3xl font-bold text-white">{alerts.length - enabledCount}</p>
         </div>
       </div>
 
-      {/* Alert Rules List */}
       <div className="space-y-4">
         {alerts.map(alert => (
           <div 
@@ -127,11 +126,11 @@ const Alerts: React.FC = () => {
                 <div className="flex items-center space-x-3 mb-2">
                   <h3 className="text-lg font-semibold text-white">{alert.name}</h3>
                   <span className={`px-2 py-1 rounded text-xs border ${severityColors[alert.severity]}`}>
-                    {alert.severity.toUpperCase()}
+                    {t.severity[alert.severity as keyof typeof t.severity]?.toUpperCase() || alert.severity.toUpperCase()}
                   </span>
                   {alert.enabled && (
                     <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400 border border-green-500/30">
-                      ACTIVE
+                      {t.alerts.active}
                     </span>
                   )}
                 </div>
@@ -139,13 +138,13 @@ const Alerts: React.FC = () => {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Condition</p>
+                    <p className="text-xs text-gray-500 mb-1">{t.alerts.condition}</p>
                     <code className="text-xs text-cyan-400 bg-gray-900 px-2 py-1 rounded">
                       {alert.condition}
                     </code>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Action</p>
+                    <p className="text-xs text-gray-500 mb-1">{t.alerts.action}</p>
                     <p className="text-sm text-gray-300">{alert.action}</p>
                   </div>
                 </div>
@@ -159,7 +158,7 @@ const Alerts: React.FC = () => {
                       ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
                       : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
                   }`}
-                  title={alert.enabled ? 'Disable' : 'Enable'}
+                  title={alert.enabled ? t.alerts.disable : t.alerts.enable}
                 >
                   {alert.enabled ? (
                     <ToggleRight className="w-5 h-5" />
@@ -170,7 +169,7 @@ const Alerts: React.FC = () => {
                 
                 <button
                   className="p-2 bg-gray-700 text-gray-400 rounded-lg hover:bg-gray-600 hover:text-white transition-all"
-                  title="Edit"
+                  title={t.common.edit}
                 >
                   <Edit className="w-5 h-5" />
                 </button>
@@ -178,7 +177,7 @@ const Alerts: React.FC = () => {
                 <button
                   onClick={() => deleteAlert(alert.id)}
                   className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-all"
-                  title="Delete"
+                  title={t.common.delete}
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>
@@ -188,11 +187,10 @@ const Alerts: React.FC = () => {
         ))}
       </div>
 
-      {/* Alert Channels */}
       <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
           <Bell className="w-5 h-5 mr-2 text-cyan-400" />
-          Notification Channels
+          {t.alerts.notificationChannels}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-4">
@@ -216,7 +214,7 @@ const Alerts: React.FC = () => {
               <h4 className="text-white font-medium">Webhook</h4>
               <span className="w-3 h-3 bg-gray-500 rounded-full"></span>
             </div>
-            <p className="text-sm text-gray-400">Not configured</p>
+            <p className="text-sm text-gray-400">{t.alerts.notConfigured}</p>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Search, Filter, Download, Plus, X, Calendar, User, Server, Activity } from 'lucide-react';
 import { Log } from '../types';
 import { logsApi } from '../services/api';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface LogsViewerProps {
   logs: Log[];
@@ -9,6 +10,7 @@ interface LogsViewerProps {
 }
 
 const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
@@ -19,10 +21,8 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
   const [isCreating, setIsCreating] = useState(false);
   const logsPerPage = 20;
 
-  // Get unique sources
   const sources = [...new Set(logs.map(log => log.source))];
 
-  // Filter logs
   const filteredLogs = logs.filter(log => {
     const matchesSearch = log.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          log.ip.includes(searchTerm) ||
@@ -33,7 +33,6 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
     return matchesSearch && matchesSeverity && matchesSource;
   });
 
-  // Pagination
   const indexOfLastLog = currentPage * logsPerPage;
   const indexOfFirstLog = indexOfLastLog - logsPerPage;
   const currentLogs = filteredLogs.slice(indexOfFirstLog, indexOfLastLog);
@@ -49,10 +48,10 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
 
   const handleExport = () => {
     const csv = [
-      ['Timestamp', 'Severity', 'Source', 'Message', 'IP', 'User'],
+      [t.logs.timestamp, t.logs.severity, t.logs.source, t.logs.message, t.logs.ipAddress, t.logs.user],
       ...filteredLogs.map(log => [
         new Date(log.timestamp).toLocaleString(),
-        log.severity,
+        t.severity[log.severity as keyof typeof t.severity] || log.severity,
         log.source,
         log.message,
         log.ip,
@@ -87,13 +86,12 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
       setShowCreateModal(false);
       if (onRefresh) onRefresh();
       
-      // Добавляем уведомление
       if ((window as any).addNotification) {
         (window as any).addNotification({
-          title: 'Log Created',
-          message: `New ${logData.severity} log created successfully`,
+          title: t.notificationTypes.logCreated,
+          message: `${t.notificationTypes.logCreatedMessage}: ${t.severity[logData.severity as keyof typeof t.severity]}`,
           type: logData.severity === 'critical' || logData.severity === 'high' ? 'warning' : 'info',
-          time: 'Just now'
+          time: t.time.justNow
         });
       }
     } catch (error) {
@@ -111,12 +109,11 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
       <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white flex items-center">
             <Filter className="w-5 h-5 mr-2 text-cyan-400" />
-            Filters
+            {t.logs.filters}
           </h3>
           <div className="flex items-center space-x-2">
             <button
@@ -124,14 +121,14 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
               className="flex items-center space-x-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg hover:bg-green-500/30 transition-all"
             >
               <Plus className="w-4 h-4" />
-              <span>Create Log</span>
+              <span>{t.logs.createLog}</span>
             </button>
             <button
               onClick={handleExport}
               className="flex items-center space-x-2 px-4 py-2 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/30 transition-all"
             >
               <Download className="w-4 h-4" />
-              <span>Export CSV</span>
+              <span>{t.logs.exportCSV}</span>
             </button>
           </div>
         </div>
@@ -141,7 +138,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search logs..."
+              placeholder={t.logs.searchPlaceholder}
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -159,12 +156,12 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
             }}
             className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
           >
-            <option value="all">All Severities</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-            <option value="info">Info</option>
+            <option value="all">{t.logs.allSeverities}</option>
+            <option value="critical">{t.severity.critical}</option>
+            <option value="high">{t.severity.high}</option>
+            <option value="medium">{t.severity.medium}</option>
+            <option value="low">{t.severity.low}</option>
+            <option value="info">{t.severity.info}</option>
           </select>
 
           <select
@@ -175,7 +172,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
             }}
             className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
           >
-            <option value="all">All Sources</option>
+            <option value="all">{t.logs.allSources}</option>
             {sources.map(source => (
               <option key={source} value={source}>{source}</option>
             ))}
@@ -183,29 +180,28 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
         </div>
       </div>
 
-      {/* Logs Table */}
       <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-900/50">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Timestamp
+                  {t.logs.timestamp}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Severity
+                  {t.logs.severity}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Source
+                  {t.logs.source}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Message
+                  {t.logs.message}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  IP Address
+                  {t.logs.ipAddress}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  User
+                  {t.logs.user}
                 </th>
               </tr>
             </thead>
@@ -227,7 +223,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 rounded text-xs border ${severityColors[log.severity]}`}>
-                      {log.severity.toUpperCase()}
+                      {t.severity[log.severity as keyof typeof t.severity]?.toUpperCase() || log.severity.toUpperCase()}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-white group-hover:text-cyan-400 transition-colors">
@@ -242,7 +238,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
                     {log.ip}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                    {log.user || '-'}
+                    {log.user || t.logs.noUser}
                   </td>
                 </tr>
               ))}
@@ -250,10 +246,9 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
           </table>
         </div>
         
-        {/* Pagination */}
         <div className="bg-gray-900/50 px-6 py-4 border-t border-gray-700 flex items-center justify-between">
           <p className="text-sm text-gray-400">
-            Showing {indexOfFirstLog + 1} to {Math.min(indexOfLastLog, filteredLogs.length)} of {filteredLogs.length} logs
+            {t.logs.showing} {indexOfFirstLog + 1} {t.logs.to} {Math.min(indexOfLastLog, filteredLogs.length)} {t.logs.of} {filteredLogs.length}
           </p>
           
           <div className="flex items-center space-x-2">
@@ -262,7 +257,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
               disabled={currentPage === 1}
               className="px-3 py-1 bg-gray-800 border border-gray-700 rounded text-sm text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Previous
+              {t.logs.previous}
             </button>
             
             <div className="flex items-center space-x-1">
@@ -291,18 +286,17 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
               disabled={currentPage === totalPages}
               className="px-3 py-1 bg-gray-800 border border-gray-700 rounded text-sm text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Next
+              {t.logs.next}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Log Details Modal */}
       {showDetailsModal && selectedLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
             <div className="sticky top-0 bg-gray-900 border-b border-gray-700 p-6 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-white">Log Details</h3>
+              <h3 className="text-xl font-bold text-white">{t.logs.logDetails}</h3>
               <button
                 onClick={() => setShowDetailsModal(false)}
                 className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
@@ -312,22 +306,20 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
             </div>
             
             <div className="p-6 space-y-4">
-              {/* Severity Badge */}
               <div className="flex items-center justify-between">
                 <span className={`px-3 py-1.5 rounded-lg text-sm border font-medium ${severityColors[selectedLog.severity]}`}>
-                  {selectedLog.severity.toUpperCase()} SEVERITY
+                  {t.severity[selectedLog.severity as keyof typeof t.severity]?.toUpperCase()}
                 </span>
                 <span className="text-sm text-gray-400">
                   ID: {selectedLog.id}
                 </span>
               </div>
 
-              {/* Main Info Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-gray-800/50 rounded-lg p-4">
                   <div className="flex items-center space-x-2 mb-2">
                     <Calendar className="w-4 h-4 text-cyan-400" />
-                    <span className="text-xs text-gray-400">Timestamp</span>
+                    <span className="text-xs text-gray-400">{t.logs.timestamp}</span>
                   </div>
                   <p className="text-white font-mono text-sm">
                     {new Date(selectedLog.timestamp).toLocaleString()}
@@ -337,7 +329,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
                 <div className="bg-gray-800/50 rounded-lg p-4">
                   <div className="flex items-center space-x-2 mb-2">
                     <Server className="w-4 h-4 text-cyan-400" />
-                    <span className="text-xs text-gray-400">Source</span>
+                    <span className="text-xs text-gray-400">{t.logs.source}</span>
                   </div>
                   <p className="text-white text-sm">{selectedLog.source}</p>
                 </div>
@@ -345,7 +337,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
                 <div className="bg-gray-800/50 rounded-lg p-4">
                   <div className="flex items-center space-x-2 mb-2">
                     <Activity className="w-4 h-4 text-cyan-400" />
-                    <span className="text-xs text-gray-400">IP Address</span>
+                    <span className="text-xs text-gray-400">{t.logs.ipAddress}</span>
                   </div>
                   <p className="text-cyan-400 font-mono text-sm">{selectedLog.ip}</p>
                 </div>
@@ -353,28 +345,25 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
                 <div className="bg-gray-800/50 rounded-lg p-4">
                   <div className="flex items-center space-x-2 mb-2">
                     <User className="w-4 h-4 text-cyan-400" />
-                    <span className="text-xs text-gray-400">User</span>
+                    <span className="text-xs text-gray-400">{t.logs.user}</span>
                   </div>
-                  <p className="text-white text-sm">{selectedLog.user || 'N/A'}</p>
+                  <p className="text-white text-sm">{selectedLog.user || t.logs.noUser}</p>
                 </div>
               </div>
 
-              {/* Action */}
               <div className="bg-gray-800/50 rounded-lg p-4">
-                <span className="text-xs text-gray-400 block mb-2">Action</span>
+                <span className="text-xs text-gray-400 block mb-2">{t.logs.action}</span>
                 <p className="text-white text-sm">{selectedLog.action}</p>
               </div>
 
-              {/* Message */}
               <div className="bg-gray-800/50 rounded-lg p-4">
-                <span className="text-xs text-gray-400 block mb-2">Message</span>
+                <span className="text-xs text-gray-400 block mb-2">{t.logs.message}</span>
                 <p className="text-white text-sm leading-relaxed">{selectedLog.message}</p>
               </div>
 
-              {/* Details (if any) */}
               {selectedLog.details && Object.keys(selectedLog.details).length > 0 && (
                 <div className="bg-gray-800/50 rounded-lg p-4">
-                  <span className="text-xs text-gray-400 block mb-2">Additional Details</span>
+                  <span className="text-xs text-gray-400 block mb-2">{t.logs.additionalDetails}</span>
                   <pre className="text-xs text-gray-300 overflow-x-auto p-3 bg-gray-900 rounded">
                     {JSON.stringify(selectedLog.details, null, 2)}
                   </pre>
@@ -387,21 +376,20 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
                 onClick={() => setShowDetailsModal(false)}
                 className="w-full py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
               >
-                Close
+                {t.common.close}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Create Log Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold text-white mb-4">Create New Log</h3>
+            <h3 className="text-xl font-bold text-white mb-4">{t.logs.createNewLog}</h3>
             <form onSubmit={handleCreateLog} className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Source</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.logs.source}</label>
                 <input
                   name="source"
                   type="text"
@@ -412,33 +400,33 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
               </div>
               
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Severity</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.logs.severity}</label>
                 <select
                   name="severity"
                   required
                   className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
                 >
-                  <option value="info">Info</option>
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="critical">Critical</option>
+                  <option value="info">{t.severity.info}</option>
+                  <option value="low">{t.severity.low}</option>
+                  <option value="medium">{t.severity.medium}</option>
+                  <option value="high">{t.severity.high}</option>
+                  <option value="critical">{t.severity.critical}</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Message</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.logs.message}</label>
                 <textarea
                   name="message"
                   required
                   className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
-                  placeholder="Log message..."
+                  placeholder={t.logs.message}
                   rows={3}
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">IP Address</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.logs.ipAddress}</label>
                 <input
                   name="ip"
                   type="text"
@@ -449,7 +437,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Action</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.logs.action}</label>
                 <input
                   name="action"
                   type="text"
@@ -460,7 +448,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">User (Optional)</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.logs.user}</label>
                 <input
                   name="user"
                   type="text"
@@ -475,14 +463,14 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
                   disabled={isCreating}
                   className="flex-1 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-all disabled:opacity-50"
                 >
-                  {isCreating ? 'Creating...' : 'Create Log'}
+                  {isCreating ? t.common.loading : t.logs.createLog}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
                   className="flex-1 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
                 >
-                  Cancel
+                  {t.common.cancel}
                 </button>
               </div>
             </form>

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, User, Shield, Bell, Database, Save, Check } from 'lucide-react';
+import { Settings as SettingsIcon, User, Shield, Bell, Database, Save, Check, Globe } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+import { Language } from '../i18n/i18n';
 
 interface SettingsState {
   notifications: {
@@ -22,6 +24,7 @@ interface SettingsState {
 }
 
 const Settings: React.FC = () => {
+  const { t, language, setLanguage } = useLanguage();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   
   const [settings, setSettings] = useState<SettingsState>({
@@ -53,7 +56,6 @@ const Settings: React.FC = () => {
 
   const [saved, setSaved] = useState(false);
 
-  // Загрузка настроек из localStorage при монтировании
   useEffect(() => {
     const savedSettings = localStorage.getItem('app_settings');
     if (savedSettings) {
@@ -75,11 +77,9 @@ const Settings: React.FC = () => {
   }, []);
 
   const handleSave = () => {
-    // Сохраняем настройки в localStorage
     localStorage.setItem('app_settings', JSON.stringify(settings));
     localStorage.setItem('user_profile', JSON.stringify(userProfile));
     
-    // Обновляем данные пользователя в localStorage
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     const updatedUser = {
       ...currentUser,
@@ -90,13 +90,12 @@ const Settings: React.FC = () => {
     
     setSaved(true);
     
-    // Показываем уведомление
     if ((window as any).addNotification) {
       (window as any).addNotification({
-        title: 'Settings Saved',
-        message: 'Your preferences have been updated successfully',
+        title: t.notificationTypes.settingsSaved,
+        message: t.notificationTypes.settingsSavedMessage,
         type: 'info',
-        time: 'Just now'
+        time: t.time.justNow
       });
     }
     
@@ -109,20 +108,25 @@ const Settings: React.FC = () => {
     window.location.reload();
   };
 
+  const languageNames: Record<Language, string> = {
+    en: 'English',
+    ru: 'Русский',
+    tk: 'Türkmençe'
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white mb-2">Settings</h2>
-          <p className="text-gray-400">Configure system preferences and security options</p>
+          <h2 className="text-2xl font-bold text-white mb-2">{t.settings.title}</h2>
+          <p className="text-gray-400">{t.settings.subtitle}</p>
         </div>
         <div className="flex items-center space-x-2">
           <button
             onClick={handleReset}
             className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
           >
-            Reset to Default
+            {t.settings.resetToDefault}
           </button>
           <button
             onClick={handleSave}
@@ -133,8 +137,36 @@ const Settings: React.FC = () => {
             }`}
           >
             {saved ? <Check className="w-5 h-5" /> : <Save className="w-5 h-5" />}
-            <span>{saved ? 'Saved!' : 'Save Changes'}</span>
+            <span>{saved ? t.settings.saved : t.settings.saveChanges}</span>
           </button>
+        </div>
+      </div>
+
+      {/* Language Selection */}
+      <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+          <Globe className="w-5 h-5 mr-2 text-cyan-400" />
+          {t.settings.language}
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {(['en', 'ru', 'tk'] as Language[]).map((lang) => (
+            <button
+              key={lang}
+              onClick={() => setLanguage(lang)}
+              className={`px-4 py-3 rounded-lg border-2 transition-all ${
+                language === lang
+                  ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400'
+                  : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-600'
+              }`}
+            >
+              <div className="text-center">
+                <div className="text-2xl mb-1">
+                  {lang === 'en' ? '🇬🇧' : lang === 'ru' ? '🇷🇺' : '🇹🇲'}
+                </div>
+                <div className="font-medium">{languageNames[lang]}</div>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -142,11 +174,11 @@ const Settings: React.FC = () => {
       <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
           <User className="w-5 h-5 mr-2 text-cyan-400" />
-          User Profile
+          {t.settings.userProfile}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Full Name</label>
+            <label className="block text-sm text-gray-400 mb-2">{t.settings.fullName}</label>
             <input
               type="text"
               value={userProfile.name}
@@ -155,7 +187,7 @@ const Settings: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Email</label>
+            <label className="block text-sm text-gray-400 mb-2">{t.common.email}</label>
             <input
               type="email"
               value={userProfile.email}
@@ -164,19 +196,19 @@ const Settings: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Role</label>
+            <label className="block text-sm text-gray-400 mb-2">{t.settings.role}</label>
             <select 
               value={userProfile.role}
               onChange={(e) => setUserProfile({ ...userProfile, role: e.target.value })}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
             >
-              <option value="admin">Administrator</option>
-              <option value="analyst">Analyst</option>
-              <option value="viewer">Viewer</option>
+              <option value="admin">{t.roles.admin}</option>
+              <option value="analyst">{t.roles.analyst}</option>
+              <option value="viewer">{t.roles.viewer}</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Department</label>
+            <label className="block text-sm text-gray-400 mb-2">{t.settings.department}</label>
             <input
               type="text"
               value={userProfile.department}
@@ -191,13 +223,13 @@ const Settings: React.FC = () => {
       <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
           <Bell className="w-5 h-5 mr-2 text-cyan-400" />
-          Notifications
+          {t.settings.notifications}
         </h3>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-white">Email Notifications</p>
-              <p className="text-sm text-gray-400">Receive alerts via email</p>
+              <p className="text-white">{t.settings.emailNotifications}</p>
+              <p className="text-sm text-gray-400">{t.settings.emailNotificationsDesc}</p>
             </div>
             <button
               onClick={() => setSettings({
@@ -218,8 +250,8 @@ const Settings: React.FC = () => {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-white">Slack Notifications</p>
-              <p className="text-sm text-gray-400">Post alerts to Slack channel</p>
+              <p className="text-white">{t.settings.slackNotifications}</p>
+              <p className="text-sm text-gray-400">{t.settings.slackNotificationsDesc}</p>
             </div>
             <button
               onClick={() => setSettings({
@@ -240,8 +272,8 @@ const Settings: React.FC = () => {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-white">Push Notifications</p>
-              <p className="text-sm text-gray-400">Browser push notifications</p>
+              <p className="text-white">{t.settings.pushNotifications}</p>
+              <p className="text-sm text-gray-400">{t.settings.pushNotificationsDesc}</p>
             </div>
             <button
               onClick={() => setSettings({
@@ -266,13 +298,13 @@ const Settings: React.FC = () => {
       <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
           <Shield className="w-5 h-5 mr-2 text-cyan-400" />
-          Security
+          {t.settings.security}
         </h3>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-white">Two-Factor Authentication</p>
-              <p className="text-sm text-gray-400">Add an extra layer of security</p>
+              <p className="text-white">{t.settings.twoFactor}</p>
+              <p className="text-sm text-gray-400">{t.settings.twoFactorDesc}</p>
             </div>
             <button
               onClick={() => setSettings({
@@ -292,7 +324,7 @@ const Settings: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-white mb-2">Session Timeout (minutes)</label>
+            <label className="block text-white mb-2">{t.settings.sessionTimeout}</label>
             <input
               type="number"
               value={settings.security.sessionTimeout}
@@ -310,11 +342,11 @@ const Settings: React.FC = () => {
       <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
           <SettingsIcon className="w-5 h-5 mr-2 text-cyan-400" />
-          Display Settings
+          {t.settings.displaySettings}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-white mb-2">Auto-Refresh Interval (seconds)</label>
+            <label className="block text-white mb-2">{t.settings.refreshInterval}</label>
             <select
               value={settings.display.refreshInterval}
               onChange={(e) => setSettings({
@@ -323,15 +355,15 @@ const Settings: React.FC = () => {
               })}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
             >
-              <option value="5">5 seconds</option>
-              <option value="10">10 seconds</option>
-              <option value="30">30 seconds</option>
-              <option value="60">1 minute</option>
+              <option value="5">5 {t.time.seconds}</option>
+              <option value="10">10 {t.time.seconds}</option>
+              <option value="30">30 {t.time.seconds}</option>
+              <option value="60">1 {t.time.minutes}</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-white mb-2">Items Per Page</label>
+            <label className="block text-white mb-2">{t.settings.itemsPerPage}</label>
             <select
               value={settings.display.itemsPerPage}
               onChange={(e) => setSettings({
@@ -353,11 +385,11 @@ const Settings: React.FC = () => {
       <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
           <Database className="w-5 h-5 mr-2 text-cyan-400" />
-          Data Retention
+          {t.settings.dataRetention}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-white mb-2">Log Retention (days)</label>
+            <label className="block text-white mb-2">{t.settings.logRetention}</label>
             <input
               type="number"
               value={settings.dataRetention.logRetention}
@@ -370,7 +402,7 @@ const Settings: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-white mb-2">Incident Retention (days)</label>
+            <label className="block text-white mb-2">{t.settings.incidentRetention}</label>
             <input
               type="number"
               value={settings.dataRetention.incidentRetention}

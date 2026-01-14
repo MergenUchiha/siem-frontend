@@ -1,5 +1,6 @@
 import React from 'react';
 import { Shield, BarChart3, Database, AlertTriangle, TrendingUp, Bell, Settings, Users, X, Activity } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface MenuItem {
   id: string;
@@ -16,17 +17,18 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) => {
-  // Получаем данные пользователя из localStorage
+  const { t } = useLanguage();
+  
   const userString = localStorage.getItem('user');
   const user = userString ? JSON.parse(userString) : { name: 'User', email: 'user@siem.local', role: 'analyst' };
 
   const menuItems: MenuItem[] = [
-    { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
-    { id: 'logs', icon: Database, label: 'Log Viewer' },
-    { id: 'incidents', icon: AlertTriangle, label: 'Incidents', badge: 8 },
-    { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
-    { id: 'alerts', icon: Bell, label: 'Alerts', badge: 5 },
-    { id: 'settings', icon: Settings, label: 'Settings' }
+    { id: 'dashboard', icon: BarChart3, label: t.sidebar.dashboard },
+    { id: 'logs', icon: Database, label: t.sidebar.logViewer },
+    { id: 'incidents', icon: AlertTriangle, label: t.sidebar.incidents, badge: 8 },
+    { id: 'analytics', icon: TrendingUp, label: t.sidebar.analytics },
+    { id: 'alerts', icon: Bell, label: t.sidebar.alerts, badge: 5 },
+    { id: 'settings', icon: Settings, label: t.sidebar.settings }
   ];
 
   const handleMenuClick = (tabId: string) => {
@@ -36,7 +38,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, sidebarOpen,
 
   return (
     <>
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
@@ -44,7 +45,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, sidebarOpen,
         />
       )}
       
-      {/* Sidebar */}
       <aside 
         className={`
           fixed lg:static inset-y-0 left-0 z-50 w-64 
@@ -54,7 +54,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, sidebarOpen,
           flex flex-col
         `}
       >
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-cyan-500/20">
           <div className="flex items-center space-x-3">
             <div className="relative">
@@ -80,7 +79,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, sidebarOpen,
           </button>
         </div>
         
-        {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto scrollbar-custom">
           {menuItems.map(item => {
             const Icon = item.icon;
@@ -125,19 +123,18 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, sidebarOpen,
           })}
         </nav>
 
-        {/* System Status */}
         <div className="p-4 border-t border-cyan-500/20">
           <div className="bg-gray-800/50 backdrop-blur rounded-lg p-3 mb-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-400">System Status</span>
+              <span className="text-xs text-gray-400">{t.sidebar.systemStatus}</span>
               <div className="flex items-center space-x-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <span className="text-xs text-green-400 font-medium">Online</span>
+                <span className="text-xs text-green-400 font-medium">{t.header.online}</span>
               </div>
             </div>
             <div className="space-y-1">
               <div className="flex justify-between text-xs">
-                <span className="text-gray-500">CPU Usage</span>
+                <span className="text-gray-500">{t.sidebar.cpuUsage}</span>
                 <span className="text-gray-300">45%</span>
               </div>
               <div className="w-full bg-gray-700 rounded-full h-1">
@@ -147,7 +144,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, sidebarOpen,
           </div>
         </div>
 
-        {/* User Profile */}
         <div className="p-4 border-t border-cyan-500/20">
           <div className="flex items-center space-x-3 px-4 py-3 bg-gray-800/50 backdrop-blur rounded-lg hover:bg-gray-700/50 transition-all cursor-pointer group">
             <div className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center ring-2 ring-cyan-500/30 group-hover:ring-cyan-500/50 transition-all">

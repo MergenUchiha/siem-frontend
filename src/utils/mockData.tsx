@@ -210,7 +210,7 @@ export const generateTimeSeriesData = (hours: number = 24) => {
 
 // Top IPs Generator
 export const generateTopIPs = (count: number = 10) => {
-  return Array.from({ length: count }, (_, i) => ({
+  return Array.from({ length: count }, () => ({
     ip: `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
     requests: Math.floor(Math.random() * 1000) + 100,
     threats: Math.floor(Math.random() * 50),

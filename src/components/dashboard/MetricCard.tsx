@@ -1,5 +1,6 @@
 import React from 'react';
 import { LucideIcon, TrendingUp, TrendingDown } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface MetricCardProps {
   icon: LucideIcon;
@@ -18,6 +19,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
   color,
   subtitle 
 }) => {
+  const { t } = useLanguage();
   const isPositive = change !== undefined && change >= 0;
   
   return (
@@ -37,7 +39,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
                 <TrendingDown className="w-4 h-4 mr-1" />
               )}
               <span>{Math.abs(change).toFixed(1)}%</span>
-              <span className="text-gray-500 ml-1">vs last hour</span>
+              <span className="text-gray-500 ml-1">{t.dashboard.lastHour}</span>
             </div>
           )}
           

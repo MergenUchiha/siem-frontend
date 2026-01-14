@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AlertTriangle, Eye, CheckCircle, Clock, Filter, Tag, Plus, Edit, Trash2 } from 'lucide-react';
 import { Incident } from '../types';
 import { incidentsApi } from '../services/api';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface IncidentsProps {
   incidents: Incident[];
@@ -9,6 +10,7 @@ interface IncidentsProps {
 }
 
 const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
+  const { t } = useLanguage();
   const [statusFilter, setStatusFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -37,7 +39,6 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
     low: 'text-blue-400'
   };
 
-  // Stats
   const stats = {
     open: incidents.filter(i => i.status === 'open').length,
     investigating: incidents.filter(i => i.status === 'investigating').length,
@@ -65,7 +66,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
       await incidentsApi.create(incidentData);
       setShowCreateModal(false);
       if (onRefresh) onRefresh();
-      alert('Incident created successfully!');
+      alert(t.notificationTypes.newSecurityIncident);
     } catch (error) {
       console.error('Failed to create incident:', error);
       alert('Failed to create incident');
@@ -116,14 +117,13 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 hover:border-red-500/50 transition-all">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-red-400 text-sm mb-1">Open Incidents</p>
+              <p className="text-red-400 text-sm mb-1">{t.incidents.openIncidents}</p>
               <p className="text-3xl font-bold text-white">{stats.open}</p>
-              <p className="text-xs text-gray-400 mt-1">Requires attention</p>
+              <p className="text-xs text-gray-400 mt-1">{t.incidents.requiresAttention}</p>
             </div>
             <AlertTriangle className="w-12 h-12 text-red-400 opacity-50" />
           </div>
@@ -132,9 +132,9 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-6 hover:border-yellow-500/50 transition-all">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-yellow-400 text-sm mb-1">Investigating</p>
+              <p className="text-yellow-400 text-sm mb-1">{t.incidents.investigating}</p>
               <p className="text-3xl font-bold text-white">{stats.investigating}</p>
-              <p className="text-xs text-gray-400 mt-1">In progress</p>
+              <p className="text-xs text-gray-400 mt-1">{t.incidents.inProgress}</p>
             </div>
             <Eye className="w-12 h-12 text-yellow-400 opacity-50" />
           </div>
@@ -143,16 +143,15 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
         <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6 hover:border-green-500/50 transition-all">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-400 text-sm mb-1">Resolved</p>
+              <p className="text-green-400 text-sm mb-1">{t.incidents.resolved}</p>
               <p className="text-3xl font-bold text-white">{stats.resolved}</p>
-              <p className="text-xs text-gray-400 mt-1">Completed</p>
+              <p className="text-xs text-gray-400 mt-1">{t.incidents.completed}</p>
             </div>
             <CheckCircle className="w-12 h-12 text-green-400 opacity-50" />
           </div>
         </div>
       </div>
 
-      {/* Filters */}
       <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-4">
@@ -162,11 +161,11 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
             >
-              <option value="all">All Statuses</option>
-              <option value="open">Open</option>
-              <option value="investigating">Investigating</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
+              <option value="all">{t.incidents.allStatuses}</option>
+              <option value="open">{t.statuses.open}</option>
+              <option value="investigating">{t.statuses.investigating}</option>
+              <option value="resolved">{t.statuses.resolved}</option>
+              <option value="closed">{t.statuses.closed}</option>
             </select>
             
             <select
@@ -174,11 +173,11 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
               onChange={(e) => setSeverityFilter(e.target.value)}
               className="px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
             >
-              <option value="all">All Severities</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
+              <option value="all">{t.incidents.allSeverities}</option>
+              <option value="critical">{t.severity.critical}</option>
+              <option value="high">{t.severity.high}</option>
+              <option value="medium">{t.severity.medium}</option>
+              <option value="low">{t.severity.low}</option>
             </select>
           </div>
 
@@ -187,12 +186,11 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
             className="flex items-center space-x-2 px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg hover:bg-green-500/30 transition-all"
           >
             <Plus className="w-4 h-4" />
-            <span>Create Incident</span>
+            <span>{t.incidents.createIncident}</span>
           </button>
         </div>
       </div>
 
-      {/* Incidents List */}
       <div className="space-y-4">
         {filteredIncidents.map(incident => (
           <div 
@@ -206,10 +204,10 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
                     {incident.title}
                   </h3>
                   <span className={`px-2 py-1 rounded text-xs border ${statusColors[incident.status]}`}>
-                    {incident.status.toUpperCase()}
+                    {t.statuses[incident.status as keyof typeof t.statuses]?.toUpperCase() || incident.status.toUpperCase()}
                   </span>
                   <span className={`text-sm font-medium ${severityColors[incident.severity]}`}>
-                    {incident.severity.toUpperCase()}
+                    {t.severity[incident.severity as keyof typeof t.severity]?.toUpperCase() || incident.severity.toUpperCase()}
                   </span>
                 </div>
                 <p className="text-gray-400 text-sm">{incident.description}</p>
@@ -222,7 +220,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
                     setShowUpdateModal(true);
                   }}
                   className="p-2 bg-gray-700 text-gray-400 rounded-lg hover:bg-gray-600 hover:text-white transition-all"
-                  title="Edit"
+                  title={t.common.edit}
                 >
                   <Edit className="w-4 h-4" />
                 </button>
@@ -230,7 +228,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
                 <button
                   onClick={() => handleDeleteIncident(incident.id)}
                   className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-all"
-                  title="Delete"
+                  title={t.common.delete}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -241,7 +239,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
               <div>
                 <p className="text-xs text-gray-500 mb-2 flex items-center">
                   <Tag className="w-3 h-3 mr-1" />
-                  Affected Systems
+                  {t.incidents.affectedSystems}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {incident.affectedSystems.map(system => (
@@ -258,7 +256,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
               <div>
                 <p className="text-xs text-gray-500 mb-2 flex items-center">
                   <Clock className="w-3 h-3 mr-1" />
-                  Timestamp
+                  {t.logs.timestamp}
                 </p>
                 <p className="text-sm text-gray-300">
                   {new Date(incident.timestamp).toLocaleString()}
@@ -267,7 +265,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
               
               {incident.assignedTo && (
                 <div>
-                  <p className="text-xs text-gray-500 mb-2">Assigned To</p>
+                  <p className="text-xs text-gray-500 mb-2">{t.incidents.assignedTo}</p>
                   <p className="text-sm text-gray-300">{incident.assignedTo}</p>
                 </div>
               )}
@@ -294,19 +292,18 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
       {filteredIncidents.length === 0 && (
         <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-12 text-center">
           <CheckCircle className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-400 text-lg">No incidents found</p>
-          <p className="text-gray-500 text-sm mt-2">Try adjusting your filters</p>
+          <p className="text-gray-400 text-lg">{t.incidents.noIncidents}</p>
+          <p className="text-gray-500 text-sm mt-2">{t.incidents.adjustFilters}</p>
         </div>
       )}
 
-      {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-y-auto p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md my-8">
-            <h3 className="text-xl font-bold text-white mb-4">Create New Incident</h3>
+            <h3 className="text-xl font-bold text-white mb-4">{t.incidents.createIncident}</h3>
             <form onSubmit={handleCreateIncident} className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Title</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.incidents.title || 'Title'}</label>
                 <input
                   name="title"
                   type="text"
@@ -317,21 +314,21 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Severity</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.logs.severity}</label>
                 <select
                   name="severity"
                   required
                   className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
                 >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="critical">Critical</option>
+                  <option value="low">{t.severity.low}</option>
+                  <option value="medium">{t.severity.medium}</option>
+                  <option value="high">{t.severity.high}</option>
+                  <option value="critical">{t.severity.critical}</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Affected Systems (comma-separated)</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.incidents.affectedSystems}</label>
                 <input
                   name="affectedSystems"
                   type="text"
@@ -342,7 +339,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Description</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.incidents.description}</label>
                 <textarea
                   name="description"
                   required
@@ -353,7 +350,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Assigned To (Optional)</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.incidents.assignedTo}</label>
                 <input
                   name="assignedTo"
                   type="email"
@@ -363,7 +360,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Tags (comma-separated, optional)</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.incidents.tags}</label>
                 <input
                   name="tags"
                   type="text"
@@ -378,14 +375,14 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
                   disabled={isCreating}
                   className="flex-1 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-all disabled:opacity-50"
                 >
-                  {isCreating ? 'Creating...' : 'Create Incident'}
+                  {isCreating ? t.common.loading : t.incidents.createIncident}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
                   className="flex-1 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
                 >
-                  Cancel
+                  {t.common.cancel}
                 </button>
               </div>
             </form>
@@ -393,28 +390,27 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
         </div>
       )}
 
-      {/* Update Modal */}
       {showUpdateModal && selectedIncident && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold text-white mb-4">Update Incident</h3>
+            <h3 className="text-xl font-bold text-white mb-4">{t.incidents.updateIncident}</h3>
             <form onSubmit={handleUpdateIncident} className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Status</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.common.status}</label>
                 <select
                   name="status"
                   defaultValue={selectedIncident.status}
                   className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500"
                 >
-                  <option value="open">Open</option>
-                  <option value="investigating">Investigating</option>
-                  <option value="resolved">Resolved</option>
-                  <option value="closed">Closed</option>
+                  <option value="open">{t.statuses.open}</option>
+                  <option value="investigating">{t.statuses.investigating}</option>
+                  <option value="resolved">{t.statuses.resolved}</option>
+                  <option value="closed">{t.statuses.closed}</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Assigned To</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.incidents.assignedTo}</label>
                 <input
                   name="assignedTo"
                   type="email"
@@ -425,7 +421,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Description</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.incidents.description}</label>
                 <textarea
                   name="description"
                   defaultValue={selectedIncident.description}
@@ -440,7 +436,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
                   disabled={isUpdating}
                   className="flex-1 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-all disabled:opacity-50"
                 >
-                  {isUpdating ? 'Updating...' : 'Update Incident'}
+                  {isUpdating ? t.common.loading : t.incidents.updateIncident}
                 </button>
                 <button
                   type="button"
@@ -450,7 +446,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
                   }}
                   className="flex-1 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all"
                 >
-                  Cancel
+                  {t.common.cancel}
                 </button>
               </div>
             </form>

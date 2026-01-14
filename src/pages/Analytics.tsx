@@ -2,18 +2,19 @@ import React from 'react';
 import { TrendingUp, PieChart, BarChart as BarChartIcon, Globe } from 'lucide-react';
 import { Log } from '../types';
 import { BarChart, Bar, LineChart, Line, PieChart as RechartsPieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface AnalyticsProps {
   logs: Log[];
 }
 
 const Analytics: React.FC<AnalyticsProps> = ({ logs }) => {
-  // Last 24 hours logs
+  const { t } = useLanguage();
+
   const last24Hours = logs.filter(log => 
     new Date(log.timestamp).getTime() > Date.now() - 24 * 3600000
   );
 
-  // Source distribution
   const sourceDistribution = logs.reduce((acc, log) => {
     acc[log.source] = (acc[log.source] || 0) + 1;
     return acc;
@@ -28,18 +29,16 @@ const Analytics: React.FC<AnalyticsProps> = ({ logs }) => {
       percentage: ((count / logs.length) * 100).toFixed(1)
     }));
 
-  // Severity distribution
   const severityData = logs.reduce((acc, log) => {
     acc[log.severity] = (acc[log.severity] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
   const severityChartData = Object.entries(severityData).map(([severity, count]) => ({
-    name: severity.charAt(0).toUpperCase() + severity.slice(1),
+    name: t.severity[severity as keyof typeof t.severity] || severity,
     value: count
   }));
 
-  // Hourly distribution for last 24 hours
   const hourlyData = Array.from({ length: 24 }, (_, i) => {
     const hour = new Date();
     hour.setHours(hour.getHours() - (23 - i));
@@ -58,7 +57,6 @@ const Analytics: React.FC<AnalyticsProps> = ({ logs }) => {
     };
   });
 
-  // Action distribution
   const actionData = logs.reduce((acc, log) => {
     acc[log.action] = (acc[log.action] || 0) + 1;
     return acc;
@@ -72,49 +70,38 @@ const Analytics: React.FC<AnalyticsProps> = ({ logs }) => {
       count
     }));
 
-  const COLORS = {
-    critical: '#ef4444',
-    high: '#f97316',
-    medium: '#eab308',
-    low: '#3b82f6',
-    info: '#6b7280'
-  };
-
   const PIE_COLORS = ['#06b6d4', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#6366f1'];
 
   return (
     <div className="space-y-6">
-      {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
-          <p className="text-gray-400 text-sm mb-2">Total Events (24h)</p>
+          <p className="text-gray-400 text-sm mb-2">{t.analytics.totalEvents24h}</p>
           <p className="text-3xl font-bold text-white">{last24Hours.length}</p>
         </div>
         <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
-          <p className="text-gray-400 text-sm mb-2">Unique Sources</p>
+          <p className="text-gray-400 text-sm mb-2">{t.analytics.uniqueSources}</p>
           <p className="text-3xl font-bold text-white">{Object.keys(sourceDistribution).length}</p>
         </div>
         <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
-          <p className="text-gray-400 text-sm mb-2">Critical Events</p>
+          <p className="text-gray-400 text-sm mb-2">{t.analytics.criticalEvents}</p>
           <p className="text-3xl font-bold text-red-400">
             {logs.filter(l => l.severity === 'critical').length}
           </p>
         </div>
         <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
-          <p className="text-gray-400 text-sm mb-2">Avg Events/Hour</p>
+          <p className="text-gray-400 text-sm mb-2">{t.analytics.avgEventsPerHour}</p>
           <p className="text-3xl font-bold text-white">
             {Math.round(last24Hours.length / 24)}
           </p>
         </div>
       </div>
 
-      {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 24-Hour Activity */}
         <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
             <TrendingUp className="w-5 h-5 mr-2 text-cyan-400" />
-            24-Hour Activity Overview
+            {t.analytics.activity24h}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={hourlyData}>
@@ -139,24 +126,23 @@ const Analytics: React.FC<AnalyticsProps> = ({ logs }) => {
                 dataKey="events" 
                 stroke="#06b6d4" 
                 strokeWidth={2}
-                name="Total Events"
+                name={t.analytics.events}
               />
               <Line 
                 type="monotone" 
                 dataKey="critical" 
                 stroke="#ef4444" 
                 strokeWidth={2}
-                name="Critical"
+                name={t.severity.critical}
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Source Distribution */}
         <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
             <Globe className="w-5 h-5 mr-2 text-cyan-400" />
-            Top Event Sources
+            {t.analytics.topSources}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <RechartsPieChart>
@@ -165,12 +151,12 @@ const Analytics: React.FC<AnalyticsProps> = ({ logs }) => {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percentage }) => `${name} (${percentage}%)`}
+                label={({ name, percent }: any) => `${name} (${(percent * 100).toFixed(1)}%)`}
                 outerRadius={100}
                 fill="#8884d8"
                 dataKey="value"
               >
-                {topSources.map((entry, index) => (
+                {topSources.map((_entry, index) => (
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                 ))}
               </Pie>
@@ -185,11 +171,10 @@ const Analytics: React.FC<AnalyticsProps> = ({ logs }) => {
           </ResponsiveContainer>
         </div>
 
-        {/* Severity Distribution */}
         <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
             <PieChart className="w-5 h-5 mr-2 text-cyan-400" />
-            Severity Distribution
+            {t.analytics.severityDistribution}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={severityChartData}>
@@ -208,11 +193,10 @@ const Analytics: React.FC<AnalyticsProps> = ({ logs }) => {
           </ResponsiveContainer>
         </div>
 
-        {/* Top Actions */}
         <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
             <BarChartIcon className="w-5 h-5 mr-2 text-cyan-400" />
-            Most Common Actions
+            {t.analytics.commonActions}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={topActions} layout="vertical">
@@ -238,29 +222,28 @@ const Analytics: React.FC<AnalyticsProps> = ({ logs }) => {
         </div>
       </div>
 
-      {/* Detailed Stats Table */}
       <div className="bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Source Breakdown</h3>
+        <h3 className="text-lg font-semibold text-white mb-4">{t.analytics.sourceBreakdown}</h3>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-900/50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Source
+                  {t.logs.source}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Events
+                  {t.analytics.events}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Percentage
+                  {t.analytics.percentage}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Trend
+                  {t.analytics.trend}
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {topSources.map((source, index) => (
+              {topSources.map((source) => (
                 <tr key={source.name} className="hover:bg-gray-900/50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                     {source.name}

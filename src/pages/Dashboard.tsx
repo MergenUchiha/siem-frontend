@@ -3,8 +3,9 @@ import { Activity, AlertTriangle, Shield, CheckCircle, BarChart3, Zap, TrendingU
 import { Log, Incident, DashboardMetrics } from '../types';
 import MetricCard from '../components/dashboard/MetricCard';
 import { analyticsApi } from '../services/api';
+import { useLanguage } from '../contexts/LanguageContext';
 import { 
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend 
 } from 'recharts';
 
@@ -14,6 +15,7 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
+  const { t } = useLanguage();
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     totalEvents: 0,
     criticalAlerts: 0,
@@ -25,7 +27,6 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
   const [timeSeriesData, setTimeSeriesData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load metrics from API
   useEffect(() => {
     const loadMetrics = async () => {
       try {
@@ -38,7 +39,6 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
         setTimeSeriesData(timeSeriesResponse);
       } catch (error) {
         console.error('Failed to load dashboard metrics:', error);
-        // Fallback to calculated metrics
         setMetrics({
           totalEvents: logs.length,
           criticalAlerts: logs.filter(l => l.severity === 'critical').length,
@@ -53,12 +53,10 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
     };
 
     loadMetrics();
-    // Update metrics every 30 seconds
     const interval = setInterval(loadMetrics, 30000);
     return () => clearInterval(interval);
   }, [logs, incidents]);
 
-  // Memoized calculations for better performance
   const severityCounts = useMemo(() => {
     return logs.reduce((acc, log) => {
       acc[log.severity] = (acc[log.severity] || 0) + 1;
@@ -68,18 +66,18 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
 
   const severityData = useMemo(() => {
     return Object.entries(severityCounts).map(([severity, count]) => ({
-      name: severity.charAt(0).toUpperCase() + severity.slice(1),
+      name: t.severity[severity as keyof typeof t.severity] || severity,
       value: count,
       percentage: ((count / logs.length) * 100).toFixed(1)
     }));
-  }, [severityCounts, logs.length]);
+  }, [severityCounts, logs.length, t]);
 
   const SEVERITY_COLORS: Record<string, string> = {
-    Critical: '#ef4444',
-    High: '#f97316',
-    Medium: '#eab308',
-    Low: '#3b82f6',
-    Info: '#6b7280'
+    [t.severity.critical]: '#ef4444',
+    [t.severity.high]: '#f97316',
+    [t.severity.medium]: '#eab308',
+    [t.severity.low]: '#3b82f6',
+    [t.severity.info]: '#6b7280'
   };
 
   const recentLogs = useMemo(() => logs.slice(0, 8), [logs]);
@@ -109,12 +107,19 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
     return colors[status] || colors.open;
   };
 
+  const getScoreLabel = (score: number) => {
+    if (score >= 90) return t.dashboard.excellent;
+    if (score >= 70) return t.dashboard.good;
+    if (score >= 50) return t.dashboard.fair;
+    return t.dashboard.poor;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading dashboard...</p>
+          <p className="text-gray-400">{t.common.loading}...</p>
         </div>
       </div>
     );
@@ -122,57 +127,53 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
 
   return (
     <div className="space-y-6 animate-slideIn">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Security Dashboard</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">{t.dashboard.title}</h1>
           <p className="text-gray-400 flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            Last updated: {new Date(metrics.lastUpdate).toLocaleTimeString()}
+            {t.header.lastUpdate}: {new Date(metrics.lastUpdate).toLocaleTimeString()}
           </p>
         </div>
       </div>
 
-      {/* Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         <MetricCard 
           icon={Activity} 
-          title="Total Events" 
+          title={t.dashboard.totalEvents} 
           value={metrics.totalEvents} 
           change={5.2}
           color="from-cyan-500 to-blue-600"
         />
         <MetricCard 
           icon={AlertTriangle} 
-          title="Critical Alerts" 
+          title={t.dashboard.criticalAlerts} 
           value={metrics.criticalAlerts} 
           change={-12.5}
           color="from-red-500 to-pink-600"
         />
         <MetricCard 
           icon={Shield} 
-          title="Threats Blocked" 
+          title={t.dashboard.threatsBlocked} 
           value={metrics.threatsBlocked} 
           change={8.3}
           color="from-green-500 to-emerald-600"
         />
         <MetricCard 
           icon={CheckCircle} 
-          title="Security Score" 
+          title={t.dashboard.securityScore} 
           value={metrics.securityScore} 
           change={2.1}
           color="from-purple-500 to-indigo-600"
-          subtitle="Excellent"
+          subtitle={getScoreLabel(metrics.securityScore)}
         />
       </div>
 
-      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Events Timeline */}
         <div className="glass rounded-xl p-6 hover:border-cyan-500/50 transition-smooth">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
             <TrendingUp className="w-5 h-5 mr-2 text-cyan-400" />
-            Events Timeline (Last 24 Hours)
+            {t.dashboard.eventsTimeline}
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={timeSeriesData}>
@@ -201,7 +202,7 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
                 strokeWidth={2.5}
                 dot={{ r: 3 }}
                 activeDot={{ r: 5 }}
-                name="Total Events"
+                name={t.analytics.events}
               />
               <Line 
                 type="monotone" 
@@ -210,7 +211,7 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
                 strokeWidth={2.5}
                 dot={{ r: 3 }}
                 activeDot={{ r: 5 }}
-                name="Threats"
+                name={t.dashboard.threatsBlocked}
               />
               <Line 
                 type="monotone" 
@@ -218,17 +219,16 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
                 stroke="#f97316" 
                 strokeWidth={2}
                 dot={{ r: 2 }}
-                name="Critical"
+                name={t.severity.critical}
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Severity Distribution */}
         <div className="glass rounded-xl p-6 hover:border-cyan-500/50 transition-smooth">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
             <BarChart3 className="w-5 h-5 mr-2 text-cyan-400" />
-            Threat Distribution by Severity
+            {t.dashboard.threatDistribution}
           </h3>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
@@ -237,7 +237,7 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percentage }) => `${name}: ${percentage}%`}
+                label={({ name, percent }: any) => `${name}: ${(percent * 100).toFixed(1)}%`}
                 outerRadius={90}
                 fill="#8884d8"
                 dataKey="value"
@@ -258,13 +258,11 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
         </div>
       </div>
 
-      {/* Activity and Incidents */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Live Activity Feed */}
         <div className="glass rounded-xl p-6 hover:border-cyan-500/50 transition-smooth">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
             <Zap className="w-5 h-5 mr-2 text-cyan-400 animate-pulse" />
-            Live Activity Feed
+            {t.dashboard.liveActivityFeed}
           </h3>
           <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-custom">
             {recentLogs.map((log, index) => (
@@ -274,7 +272,7 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
                 style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div className={`px-2 py-1 rounded text-xs border flex-shrink-0 ${getSeverityColor(log.severity)}`}>
-                  {log.severity.toUpperCase()}
+                  {t.severity[log.severity as keyof typeof t.severity]?.toUpperCase() || log.severity.toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white truncate group-hover:text-cyan-400 transition-colors">
@@ -297,11 +295,10 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
           </div>
         </div>
 
-        {/* Critical Incidents */}
         <div className="glass rounded-xl p-6 hover:border-cyan-500/50 transition-smooth">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
             <AlertTriangle className="w-5 h-5 mr-2 text-red-400" />
-            Critical & High Severity Incidents
+            {t.dashboard.criticalIncidents}
             <span className="ml-auto px-2 py-1 text-xs bg-red-500/20 text-red-400 border border-red-500/30 rounded-full">
               {criticalIncidents.length}
             </span>
@@ -318,7 +315,7 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
                     {incident.title}
                   </h4>
                   <span className={`px-2 py-1 rounded text-xs border flex-shrink-0 ml-2 ${getStatusColor(incident.status)}`}>
-                    {incident.status.toUpperCase()}
+                    {t.statuses[incident.status as keyof typeof t.statuses]?.toUpperCase() || incident.status.toUpperCase()}
                   </span>
                 </div>
                 <p className="text-xs text-gray-400 mb-3 line-clamp-2">
@@ -330,7 +327,7 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
                   </span>
                   <span className="text-cyan-400 flex items-center gap-1">
                     <Shield className="w-3 h-3" />
-                    {incident.affectedSystems.length} systems
+                    {incident.affectedSystems.length} {t.dashboard.systems}
                   </span>
                 </div>
               </div>
