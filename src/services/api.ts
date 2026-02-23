@@ -56,6 +56,21 @@ export interface AuthResponse {
     message: string;
 }
 
+export interface WebhookConfig {
+    enabled: boolean;
+    host: string;
+    port: string;
+    path: string;
+    apiKey: string;
+}
+
+export interface PullResult {
+    fetched: number;
+    saved: number;
+    errors: number;
+    logs: any[];
+}
+
 // ============================================================================
 // FIX: helper — attach JWT token to every authenticated request
 // ============================================================================
@@ -164,7 +179,6 @@ class ApiService {
         const formData = new FormData();
         formData.append("file", file);
 
-        // multipart/form-data — do NOT set Content-Type, browser sets boundary automatically
         const token = localStorage.getItem("token");
         const response = await fetch(`${this.baseUrl}/files/upload`, {
             method: "POST",
@@ -234,9 +248,7 @@ class ApiService {
     getAnalysisByFileId = async (fileId: string): Promise<AnalysisResponse> => {
         const response = await fetch(
             `${this.baseUrl}/analysis/file/${fileId}`,
-            {
-                headers: getAuthHeaders(),
-            },
+            { headers: getAuthHeaders() },
         );
         if (!response.ok) throw new Error("Failed to fetch analysis");
         return response.json();
@@ -386,7 +398,6 @@ class AnalyticsApiService {
         return response.json();
     };
 
-    // FIX: was '/analytics/timeseries' — backend route is '/analytics/time-series'
     getTimeSeries = async (hours: number = 24): Promise<any[]> => {
         const response = await fetch(
             `${this.baseUrl}/analytics/time-series?hours=${hours}`,
@@ -424,7 +435,6 @@ class LogsApiService {
         this.baseUrl = baseUrl;
     }
 
-    // FIX: now always returns PaginatedLogs — callers use .data for the array
     getAll = async (params?: {
         limit?: number;
         offset?: number;
@@ -445,7 +455,6 @@ class LogsApiService {
 
         const result = await response.json();
 
-        // Normalise: if backend unexpectedly returns a plain array, wrap it
         if (Array.isArray(result)) {
             return {
                 data: result,
@@ -584,6 +593,80 @@ class AuthApiService {
 }
 
 // ============================================================================
+// SETTINGS API  ← NEW
+// ============================================================================
+
+class SettingsApiService {
+    private baseUrl: string;
+
+    constructor(baseUrl: string) {
+        this.baseUrl = baseUrl;
+    }
+
+    /** Load webhook/integration config from backend */
+    getWebhookConfig = async (): Promise<WebhookConfig> => {
+        const response = await fetch(`${this.baseUrl}/settings/webhook`, {
+            headers: getAuthHeaders(),
+        });
+        if (!response.ok) throw new Error("Failed to load webhook config");
+        return response.json();
+    };
+
+    /** Persist webhook/integration config to backend */
+    saveWebhookConfig = async (
+        config: WebhookConfig,
+    ): Promise<WebhookConfig> => {
+        const response = await fetch(`${this.baseUrl}/settings/webhook`, {
+            method: "POST",
+            headers: getAuthHeaders(),
+            body: JSON.stringify(config),
+        });
+        if (!response.ok) throw new Error("Failed to save webhook config");
+        return response.json();
+    };
+
+    /**
+     * Tell the backend to pull logs from the configured remote server.
+     * Backend fetches `GET <remoteUrl>`, normalises the payload and
+     * saves each entry via LogsService.
+     */
+    pullLogs = async (params?: {
+        limit?: number;
+        since?: string; // ISO timestamp — only fetch logs newer than this
+    }): Promise<PullResult> => {
+        const response = await fetch(`${this.baseUrl}/settings/webhook/pull`, {
+            method: "POST",
+            headers: getAuthHeaders(),
+            body: JSON.stringify(params ?? {}),
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error((err as any).message || "Failed to pull logs");
+        }
+        return response.json();
+    };
+
+    /** General app settings (retention days, notification flags, …) */
+    getAll = async (): Promise<any> => {
+        const response = await fetch(`${this.baseUrl}/settings`, {
+            headers: getAuthHeaders(),
+        });
+        if (!response.ok) throw new Error("Failed to load settings");
+        return response.json();
+    };
+
+    saveAll = async (data: Record<string, any>): Promise<any> => {
+        const response = await fetch(`${this.baseUrl}/settings`, {
+            method: "POST",
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error("Failed to save settings");
+        return response.json();
+    };
+}
+
+// ============================================================================
 // EXPORT SINGLETON INSTANCES
 // ============================================================================
 
@@ -592,6 +675,7 @@ export const analyticsApi = new AnalyticsApiService(API_BASE_URL);
 export const logsApi = new LogsApiService(API_BASE_URL);
 export const incidentsApi = new IncidentsApiService(API_BASE_URL);
 export const authApi = new AuthApiService(API_BASE_URL);
+export const settingsApi = new SettingsApiService(API_BASE_URL); // ← NEW
 
 // Log for debugging
 console.log("🔧 API Service initialized");
