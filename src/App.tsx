@@ -1,14 +1,3 @@
-/**
- * App.tsx — root component
- *
- * Refactoring highlights vs original:
- *  - Auth state lives in a proper AuthContext (no prop-drilling)
- *  - Data loading uses the `useFetch` hook — no manual isLoading / setError dance
- *  - WebSocket setup extracted to a `useWebSocket` hook
- *  - Sidebar state uses `useLocalStorage` so the open state survives re-renders
- *  - Route rendering moved to a tiny `<PageRouter>` component
- */
-
 import { useState, useCallback, useRef, useEffect } from "react";
 import Sidebar from "./components/layout/Sidebar";
 import Header from "./components/layout/Header";
@@ -23,8 +12,6 @@ import Integrations from "./pages/Integrations";
 import { LanguageProvider, useLanguage } from "./contexts/LanguageContext";
 import { logsApi, incidentsApi, type Log, type Incident } from "./services/api";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type TabId =
     | "dashboard"
     | "logs"
@@ -34,7 +21,15 @@ type TabId =
     | "alerts"
     | "settings";
 
-// ─── Page router ─────────────────────────────────────────────────────────────
+const VALID_TABS: TabId[] = [
+    "dashboard",
+    "logs",
+    "incidents",
+    "analytics",
+    "integrations",
+    "alerts",
+    "settings",
+];
 
 function PageRouter({
     tab,
@@ -66,8 +61,6 @@ function PageRouter({
             return <Dashboard logs={logs} incidents={incidents} />;
     }
 }
-
-// ─── Spinner / Error helpers ─────────────────────────────────────────────────
 
 function LoadingScreen() {
     return (
@@ -105,26 +98,31 @@ function ErrorScreen({
     );
 }
 
-// ─── AppContent ───────────────────────────────────────────────────────────────
-
 function AppContent() {
     const { t } = useLanguage();
 
-    // ── Auth ────────────────────────────────────────────────────────────────────
     const [isAuthenticated, setIsAuthenticated] = useState(
         () => !!localStorage.getItem("token"),
     );
 
-    // ── Navigation ──────────────────────────────────────────────────────────────
-    const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+    // ── Сохраняем активный таб в localStorage ──────────────────────────────────
+    const [activeTab, setActiveTab] = useState<TabId>(() => {
+        const saved = localStorage.getItem("activeTab") as TabId;
+        return saved && VALID_TABS.includes(saved) ? saved : "dashboard";
+    });
+
+    const handleSetTab = useCallback((tab: string) => {
+        const validTab = tab as TabId;
+        setActiveTab(validTab);
+        localStorage.setItem("activeTab", validTab);
+    }, []);
+
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    // Close sidebar on tab change
     useEffect(() => {
         setSidebarOpen(false);
     }, [activeTab]);
 
-    // ── Data ────────────────────────────────────────────────────────────────────
     const [logs, setLogs] = useState<Log[]>([]);
     const [incidents, setIncidents] = useState<Incident[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -160,7 +158,6 @@ function AppContent() {
     useEffect(() => {
         if (!isAuthenticated) return;
 
-        // Dynamic import to avoid hard dep on socket.io-client at module load
         let cleanup: (() => void) | undefined;
 
         import("./services/websocket").then(({ default: ws }) => {
@@ -213,7 +210,6 @@ function AppContent() {
         return () => cleanup?.();
     }, [isAuthenticated, t]);
 
-    // ── Auth handlers ───────────────────────────────────────────────────────────
     const handleLogin = useCallback(() => {
         setIsAuthenticated(true);
         const user = JSON.parse(localStorage.getItem("user") ?? "{}");
@@ -229,8 +225,10 @@ function AppContent() {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         localStorage.removeItem("notifications");
+        localStorage.removeItem("activeTab");
         logIdsRef.current.clear();
         setIsAuthenticated(false);
+        setActiveTab("dashboard");
         setLogs([]);
         setIncidents([]);
     }, []);
@@ -245,7 +243,6 @@ function AppContent() {
         });
     }, [loadData, t]);
 
-    // ── Render ──────────────────────────────────────────────────────────────────
     if (!isAuthenticated) return <Login onLogin={handleLogin} />;
 
     const renderMain = () => {
@@ -266,7 +263,7 @@ function AppContent() {
         <div className="flex h-screen bg-gray-950 overflow-hidden">
             <Sidebar
                 activeTab={activeTab}
-                setActiveTab={setActiveTab as (t: string) => void}
+                setActiveTab={handleSetTab}
                 sidebarOpen={sidebarOpen}
                 setSidebarOpen={setSidebarOpen}
             />
@@ -304,8 +301,6 @@ function AppContent() {
         </div>
     );
 }
-
-// ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
     return (
