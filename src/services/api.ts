@@ -1,59 +1,90 @@
-// API Service for SIEM Frontend
-// Connects to NestJS Backend
+/**
+ * api.ts — centralized API layer
+ *
+ * Improvements over the original:
+ *  - Single `apiFetch` helper handles auth headers, JSON parsing and unified error format
+ *  - All services use the helper — no copy-pasted getAuthHeaders() across classes
+ *  - Proper TypeScript generics on every method
+ *  - No mixed `fetch` + `axios` — pure fetch everywhere
+ *  - `ApiError` class lets callers do `err instanceof ApiError` and read `.status`
+ */
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+// ─── Config ───────────────────────────────────────────────────────────────────
 
-// ============================================================================
-// TYPES
-// ============================================================================
+const BASE_URL =
+    (import.meta.env.VITE_API_URL as string) || "http://localhost:3001/api";
 
-export interface FileUploadResponse {
-    id: string;
-    fileName: string;
-    fileSize: number;
-    filePath: string;
-    mimeType: string;
-    fileHash: string | null;
-    uploadDate: string;
-    updatedAt: string;
+// ─── Error type ───────────────────────────────────────────────────────────────
+
+export class ApiError extends Error {
+    constructor(
+        public readonly status: number,
+        message: string,
+        public readonly data?: unknown,
+    ) {
+        super(message);
+        this.name = "ApiError";
+    }
 }
 
-export interface AnalysisResponse {
-    id: string;
-    fileId: string;
-    status: "SCANNING" | "COMPLETED" | "FAILED";
-    threat: "SAFE" | "SUSPICIOUS" | "MALICIOUS" | null;
-    confidence: number | null;
-    features: any;
-    mlMetrics: any;
-    createdAt: string;
-    updatedAt: string;
-    file?: FileUploadResponse;
-}
+// ─── Domain types ─────────────────────────────────────────────────────────────
 
-export interface StatisticsResponse {
-    totalScans: number;
-    completed: number;
-    scanning: number;
-    failed: number;
-    threatsDetected: number;
-    safeFiles: number;
-    suspiciousFiles: number;
-    averageConfidence: number;
-}
+export type SeverityLevel = "critical" | "high" | "medium" | "low" | "info";
+export type IncidentStatus = "open" | "investigating" | "resolved" | "closed";
 
 export interface UserProfile {
     id: string;
     email: string;
     name: string;
     role: string;
-    createdAt: string;
+    createdAt?: string;
 }
 
 export interface AuthResponse {
     user: UserProfile;
+    token: string;
+}
+
+export interface Log {
+    id: string;
+    timestamp: string;
+    source: string;
+    severity: SeverityLevel;
     message: string;
+    ip: string;
+    user?: string;
+    action: string;
+    details?: Record<string, unknown>;
+}
+
+export interface Incident {
+    id: string;
+    title: string;
+    severity: SeverityLevel;
+    status: IncidentStatus;
+    timestamp: string;
+    affectedSystems: string[];
+    description: string;
+    assignedTo?: string;
+    tags?: string[];
+    resolvedAt?: string;
+}
+
+export interface DashboardMetrics {
+    totalEvents: number;
+    criticalAlerts: number;
+    activeIncidents: number;
+    securityScore: number;
+    threatsBlocked: number;
+    lastUpdate: string;
+}
+
+export interface PaginatedResponse<T> {
+    data: T[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
 }
 
 export interface WebhookConfig {
@@ -68,617 +99,178 @@ export interface PullResult {
     fetched: number;
     saved: number;
     errors: number;
-    logs: any[];
+    logs: Log[];
 }
 
-// ============================================================================
-// FIX: helper — attach JWT token to every authenticated request
-// ============================================================================
+// ─── Core fetch helper ────────────────────────────────────────────────────────
 
-const getAuthHeaders = (): Record<string, string> => {
+async function apiFetch<T>(
+    path: string,
+    options: RequestInit & {
+        params?: Record<string, string | number | undefined>;
+    } = {},
+): Promise<T> {
+    const { params, ...init } = options;
+
+    // Build URL with optional query params
+    let url = `${BASE_URL}${path}`;
+    if (params) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([k, v]) => {
+            if (v !== undefined && v !== null) qs.set(k, String(v));
+        });
+        const str = qs.toString();
+        if (str) url += `?${str}`;
+    }
+
+    // Attach auth header if token exists
     const token = localStorage.getItem("token");
-    return token
-        ? {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-          }
-        : { "Content-Type": "application/json" };
+    const headers = new Headers(init.headers);
+    if (!headers.has("Content-Type") && !(init.body instanceof FormData)) {
+        headers.set("Content-Type", "application/json");
+    }
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+
+    const res = await fetch(url, { ...init, headers });
+
+    if (!res.ok) {
+        let errData: unknown;
+        try {
+            errData = await res.json();
+        } catch {
+            errData = null;
+        }
+        const message =
+            (errData as any)?.message ??
+            `HTTP ${res.status}: ${res.statusText}`;
+        throw new ApiError(res.status, message, errData);
+    }
+
+    // 204 No Content → return empty
+    if (res.status === 204) return undefined as unknown as T;
+
+    return res.json() as Promise<T>;
+}
+
+// ─── Auth API ─────────────────────────────────────────────────────────────────
+
+export const authApi = {
+    login: (email: string, password: string) =>
+        apiFetch<AuthResponse>("/auth/login", {
+            method: "POST",
+            body: JSON.stringify({ email, password }),
+        }),
+
+    register: (email: string, password: string, name: string) =>
+        apiFetch<AuthResponse>("/auth/register", {
+            method: "POST",
+            body: JSON.stringify({ email, password, name }),
+        }),
 };
 
-// ============================================================================
-// MAIN API CLASS  (files / analysis / statistics / model)
-// ============================================================================
+// ─── Logs API ─────────────────────────────────────────────────────────────────
 
-class ApiService {
-    private baseUrl: string;
-
-    constructor(baseUrl: string) {
-        this.baseUrl = baseUrl;
-    }
-
-    // --------------------------------------------------------------------------
-    // AUTH ENDPOINTS
-    // --------------------------------------------------------------------------
-
-    login = async (email: string, password: string): Promise<AuthResponse> => {
-        console.log("🔐 API: Attempting login for:", email);
-        console.log("🌐 API: Calling:", `${this.baseUrl}/auth/login`);
-
-        try {
-            const response = await fetch(`${this.baseUrl}/auth/login`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password }),
-            });
-
-            console.log("📡 API: Response status:", response.status);
-
-            if (!response.ok) {
-                const error = await response.json();
-                console.error("❌ API: Login failed:", error);
-                throw new Error(error.message || "Invalid email or password");
-            }
-
-            const data = await response.json();
-            console.log("✅ API: Login successful:", data.user.name);
-            return data;
-        } catch (error: any) {
-            console.error("❌ API: Login error:", error);
-            throw error;
-        }
-    };
-
-    register = async (
-        email: string,
-        password: string,
-        name: string,
-    ): Promise<AuthResponse> => {
-        console.log("📝 API: Attempting registration for:", email);
-        console.log("🌐 API: Calling:", `${this.baseUrl}/auth/register`);
-
-        try {
-            const response = await fetch(`${this.baseUrl}/auth/register`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password, name }),
-            });
-
-            console.log("📡 API: Response status:", response.status);
-
-            if (!response.ok) {
-                const error = await response.json();
-                console.error("❌ API: Registration failed:", error);
-                throw new Error(error.message || "Registration failed");
-            }
-
-            const data = await response.json();
-            console.log("✅ API: Registration successful:", data.user.name);
-            return data;
-        } catch (error: any) {
-            console.error("❌ API: Registration error:", error);
-            throw error;
-        }
-    };
-
-    getProfile = async (userId: string): Promise<UserProfile> => {
-        console.log("👤 API: Fetching profile for:", userId);
-
-        const response = await fetch(`${this.baseUrl}/auth/profile/${userId}`, {
-            headers: getAuthHeaders(),
-        });
-
-        if (!response.ok) throw new Error("Failed to fetch profile");
-        return response.json();
-    };
-
-    // --------------------------------------------------------------------------
-    // FILES ENDPOINTS
-    // --------------------------------------------------------------------------
-
-    uploadFile = async (file: File): Promise<FileUploadResponse> => {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const token = localStorage.getItem("token");
-        const response = await fetch(`${this.baseUrl}/files/upload`, {
-            method: "POST",
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            body: formData,
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || "Failed to upload file");
-        }
-
-        return response.json();
-    };
-
-    getFileById = async (id: string): Promise<FileUploadResponse> => {
-        const response = await fetch(`${this.baseUrl}/files/${id}`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to fetch file");
-        return response.json();
-    };
-
-    getAllFiles = async (): Promise<FileUploadResponse[]> => {
-        const response = await fetch(`${this.baseUrl}/files`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to fetch files");
-        return response.json();
-    };
-
-    deleteFile = async (id: string): Promise<void> => {
-        const response = await fetch(`${this.baseUrl}/files/${id}`, {
-            method: "DELETE",
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to delete file");
-    };
-
-    // --------------------------------------------------------------------------
-    // ANALYSIS ENDPOINTS
-    // --------------------------------------------------------------------------
-
-    startAnalysis = async (fileId: string): Promise<AnalysisResponse> => {
-        const response = await fetch(`${this.baseUrl}/analysis/scan`, {
-            method: "POST",
-            headers: getAuthHeaders(),
-            body: JSON.stringify({ fileId }),
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || "Failed to start analysis");
-        }
-
-        return response.json();
-    };
-
-    getAnalysisById = async (id: string): Promise<AnalysisResponse> => {
-        const response = await fetch(`${this.baseUrl}/analysis/${id}`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to fetch analysis");
-        return response.json();
-    };
-
-    getAnalysisByFileId = async (fileId: string): Promise<AnalysisResponse> => {
-        const response = await fetch(
-            `${this.baseUrl}/analysis/file/${fileId}`,
-            { headers: getAuthHeaders() },
-        );
-        if (!response.ok) throw new Error("Failed to fetch analysis");
-        return response.json();
-    };
-
-    getAllAnalyses = async (params?: {
-        status?: string;
-        threat?: string;
-        limit?: number;
-        offset?: number;
-    }): Promise<{
-        data: AnalysisResponse[];
-        total: number;
-        limit: number;
-        offset: number;
-    }> => {
-        const queryParams = new URLSearchParams();
-        if (params?.status) queryParams.append("status", params.status);
-        if (params?.threat) queryParams.append("threat", params.threat);
-        if (params?.limit) queryParams.append("limit", params.limit.toString());
-        if (params?.offset)
-            queryParams.append("offset", params.offset.toString());
-
-        const url = `${this.baseUrl}/analysis${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
-        const response = await fetch(url, { headers: getAuthHeaders() });
-
-        if (!response.ok) throw new Error("Failed to fetch analyses");
-        return response.json();
-    };
-
-    // --------------------------------------------------------------------------
-    // STATISTICS ENDPOINTS
-    // --------------------------------------------------------------------------
-
-    getStatistics = async (): Promise<StatisticsResponse> => {
-        const response = await fetch(`${this.baseUrl}/statistics/overview`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to fetch statistics");
-        return response.json();
-    };
-
-    getThreatDistribution = async (): Promise<any> => {
-        const response = await fetch(`${this.baseUrl}/statistics/threats`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok)
-            throw new Error("Failed to fetch threat distribution");
-        return response.json();
-    };
-
-    getWeeklyStats = async (): Promise<any[]> => {
-        const response = await fetch(`${this.baseUrl}/statistics/weekly`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to fetch weekly stats");
-        return response.json();
-    };
-
-    // --------------------------------------------------------------------------
-    // MODEL ENDPOINTS
-    // --------------------------------------------------------------------------
-
-    getModelInfo = async (): Promise<any> => {
-        const response = await fetch(`${this.baseUrl}/model/info`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to fetch model info");
-        return response.json();
-    };
-
-    getModelMetrics = async (): Promise<any> => {
-        const response = await fetch(`${this.baseUrl}/model/metrics`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to fetch model metrics");
-        return response.json();
-    };
-
-    // --------------------------------------------------------------------------
-    // HELPER METHODS
-    // --------------------------------------------------------------------------
-
-    uploadAndAnalyze = async (
-        file: File,
-    ): Promise<{ file: FileUploadResponse; analysis: AnalysisResponse }> => {
-        const uploadedFile = await this.uploadFile(file);
-        const analysis = await this.startAnalysis(uploadedFile.id);
-        return { file: uploadedFile, analysis };
-    };
-
-    pollAnalysisStatus = async (
-        analysisId: string,
-        onUpdate: (analysis: AnalysisResponse) => void,
-        maxAttempts: number = 60,
-        intervalMs: number = 2000,
-    ): Promise<AnalysisResponse> => {
-        return new Promise((resolve, reject) => {
-            let attempts = 0;
-
-            const poll = async () => {
-                try {
-                    attempts++;
-                    const analysis = await this.getAnalysisById(analysisId);
-                    onUpdate(analysis);
-
-                    if (
-                        analysis.status === "COMPLETED" ||
-                        analysis.status === "FAILED"
-                    ) {
-                        resolve(analysis);
-                        return;
-                    }
-
-                    if (attempts >= maxAttempts) {
-                        reject(new Error("Analysis timeout"));
-                        return;
-                    }
-
-                    setTimeout(poll, intervalMs);
-                } catch (error) {
-                    reject(error);
-                }
-            };
-
-            poll();
-        });
-    };
+export interface LogFilters {
+    page?: number;
+    limit?: number;
+    severity?: SeverityLevel;
+    source?: string;
+    search?: string;
 }
 
-// ============================================================================
-// ANALYTICS API
-// ============================================================================
+export const logsApi = {
+    getAll: (filters: LogFilters = {}) =>
+        apiFetch<PaginatedResponse<Log>>("/logs", { params: filters as any }),
 
-class AnalyticsApiService {
-    private baseUrl: string;
+    getOne: (id: string) => apiFetch<Log>(`/logs/${id}`),
 
-    constructor(baseUrl: string) {
-        this.baseUrl = baseUrl;
-    }
+    create: (data: Omit<Log, "id" | "timestamp">) =>
+        apiFetch<Log>("/logs", { method: "POST", body: JSON.stringify(data) }),
 
-    getDashboard = async (): Promise<any> => {
-        const response = await fetch(`${this.baseUrl}/analytics/dashboard`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to fetch dashboard data");
-        return response.json();
-    };
+    getSources: () => apiFetch<string[]>("/logs/sources"),
+};
 
-    getTimeSeries = async (hours: number = 24): Promise<any[]> => {
-        const response = await fetch(
-            `${this.baseUrl}/analytics/time-series?hours=${hours}`,
-            { headers: getAuthHeaders() },
-        );
-        if (!response.ok) throw new Error("Failed to fetch time series data");
-        return response.json();
-    };
+// ─── Incidents API ────────────────────────────────────────────────────────────
 
-    getStatistics = async (): Promise<any> => {
-        const response = await fetch(`${this.baseUrl}/analytics/statistics`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to fetch statistics");
-        return response.json();
-    };
+export interface CreateIncidentPayload {
+    title: string;
+    severity: SeverityLevel;
+    affectedSystems: string[];
+    description: string;
+    assignedTo?: string;
+    tags?: string[];
 }
 
-// ============================================================================
-// LOGS API
-// ============================================================================
-
-export interface PaginatedLogs {
-    data: any[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
+export interface UpdateIncidentPayload {
+    status?: IncidentStatus;
+    assignedTo?: string;
+    description?: string;
+    tags?: string[];
 }
 
-class LogsApiService {
-    private baseUrl: string;
+export const incidentsApi = {
+    getAll: (filters?: { status?: IncidentStatus; severity?: SeverityLevel }) =>
+        apiFetch<Incident[]>("/incidents", { params: filters as any }),
 
-    constructor(baseUrl: string) {
-        this.baseUrl = baseUrl;
-    }
+    getOne: (id: string) => apiFetch<Incident>(`/incidents/${id}`),
 
-    getAll = async (params?: {
-        limit?: number;
-        offset?: number;
-        severity?: string;
-        page?: number;
-    }): Promise<PaginatedLogs> => {
-        const queryParams = new URLSearchParams();
-        if (params?.limit) queryParams.append("limit", params.limit.toString());
-        if (params?.offset)
-            queryParams.append("offset", params.offset.toString());
-        if (params?.page) queryParams.append("page", params.page.toString());
-        if (params?.severity) queryParams.append("severity", params.severity);
-
-        const url = `${this.baseUrl}/logs${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
-        const response = await fetch(url, { headers: getAuthHeaders() });
-
-        if (!response.ok) throw new Error("Failed to fetch logs");
-
-        const result = await response.json();
-
-        if (Array.isArray(result)) {
-            return {
-                data: result,
-                total: result.length,
-                page: 1,
-                limit: result.length,
-                totalPages: 1,
-            };
-        }
-        return result as PaginatedLogs;
-    };
-
-    create = async (logData: {
-        source: string;
-        severity: string;
-        message: string;
-        ip: string;
-        action: string;
-        user?: string;
-    }): Promise<any> => {
-        const response = await fetch(`${this.baseUrl}/logs`, {
+    create: (data: CreateIncidentPayload) =>
+        apiFetch<Incident>("/incidents", {
             method: "POST",
-            headers: getAuthHeaders(),
-            body: JSON.stringify(logData),
-        });
-        if (!response.ok) throw new Error("Failed to create log");
-        return response.json();
-    };
-}
-
-// ============================================================================
-// INCIDENTS API
-// ============================================================================
-
-class IncidentsApiService {
-    private baseUrl: string;
-
-    constructor(baseUrl: string) {
-        this.baseUrl = baseUrl;
-    }
-
-    getAll = async (): Promise<any[]> => {
-        const response = await fetch(`${this.baseUrl}/incidents`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to fetch incidents");
-        return response.json();
-    };
-
-    create = async (incidentData: {
-        title: string;
-        severity: string;
-        affectedSystems: string[];
-        description: string;
-        assignedTo?: string;
-        tags?: string[];
-    }): Promise<any> => {
-        const response = await fetch(`${this.baseUrl}/incidents`, {
-            method: "POST",
-            headers: getAuthHeaders(),
-            body: JSON.stringify(incidentData),
-        });
-        if (!response.ok) throw new Error("Failed to create incident");
-        return response.json();
-    };
-
-    update = async (
-        id: string,
-        updateData: {
-            status?: string;
-            assignedTo?: string;
-            description?: string;
-        },
-    ): Promise<any> => {
-        const response = await fetch(`${this.baseUrl}/incidents/${id}`, {
-            method: "PATCH",
-            headers: getAuthHeaders(),
-            body: JSON.stringify(updateData),
-        });
-        if (!response.ok) throw new Error("Failed to update incident");
-        return response.json();
-    };
-
-    delete = async (id: string): Promise<void> => {
-        const response = await fetch(`${this.baseUrl}/incidents/${id}`, {
-            method: "DELETE",
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to delete incident");
-    };
-}
-
-// ============================================================================
-// AUTH API
-// ============================================================================
-
-class AuthApiService {
-    private baseUrl: string;
-
-    constructor(baseUrl: string) {
-        this.baseUrl = baseUrl;
-    }
-
-    login = async (
-        email: string,
-        password: string,
-    ): Promise<{ user: UserProfile; token: string }> => {
-        const response = await fetch(`${this.baseUrl}/auth/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password }),
-        });
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || "Invalid email or password");
-        }
-        return response.json();
-    };
-
-    register = async (
-        email: string,
-        password: string,
-        name: string,
-    ): Promise<{ user: UserProfile; token: string }> => {
-        const response = await fetch(`${this.baseUrl}/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password, name }),
-        });
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || "Registration failed");
-        }
-        return response.json();
-    };
-}
-
-// ============================================================================
-// SETTINGS API  ← NEW
-// ============================================================================
-
-class SettingsApiService {
-    private baseUrl: string;
-
-    constructor(baseUrl: string) {
-        this.baseUrl = baseUrl;
-    }
-
-    /** Load webhook/integration config from backend */
-    getWebhookConfig = async (): Promise<WebhookConfig> => {
-        const response = await fetch(`${this.baseUrl}/settings/webhook`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to load webhook config");
-        return response.json();
-    };
-
-    /** Persist webhook/integration config to backend */
-    saveWebhookConfig = async (
-        config: WebhookConfig,
-    ): Promise<WebhookConfig> => {
-        const response = await fetch(`${this.baseUrl}/settings/webhook`, {
-            method: "POST",
-            headers: getAuthHeaders(),
-            body: JSON.stringify(config),
-        });
-        if (!response.ok) throw new Error("Failed to save webhook config");
-        return response.json();
-    };
-
-    /**
-     * Tell the backend to pull logs from the configured remote server.
-     * Backend fetches `GET <remoteUrl>`, normalises the payload and
-     * saves each entry via LogsService.
-     */
-    pullLogs = async (params?: {
-        limit?: number;
-        since?: string; // ISO timestamp — only fetch logs newer than this
-    }): Promise<PullResult> => {
-        const response = await fetch(`${this.baseUrl}/settings/webhook/pull`, {
-            method: "POST",
-            headers: getAuthHeaders(),
-            body: JSON.stringify(params ?? {}),
-        });
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error((err as any).message || "Failed to pull logs");
-        }
-        return response.json();
-    };
-
-    /** General app settings (retention days, notification flags, …) */
-    getAll = async (): Promise<any> => {
-        const response = await fetch(`${this.baseUrl}/settings`, {
-            headers: getAuthHeaders(),
-        });
-        if (!response.ok) throw new Error("Failed to load settings");
-        return response.json();
-    };
-
-    saveAll = async (data: Record<string, any>): Promise<any> => {
-        const response = await fetch(`${this.baseUrl}/settings`, {
-            method: "POST",
-            headers: getAuthHeaders(),
             body: JSON.stringify(data),
-        });
-        if (!response.ok) throw new Error("Failed to save settings");
-        return response.json();
-    };
-}
+        }),
 
-// ============================================================================
-// EXPORT SINGLETON INSTANCES
-// ============================================================================
+    update: (id: string, data: UpdateIncidentPayload) =>
+        apiFetch<Incident>(`/incidents/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+        }),
 
-export const api = new ApiService(API_BASE_URL);
-export const analyticsApi = new AnalyticsApiService(API_BASE_URL);
-export const logsApi = new LogsApiService(API_BASE_URL);
-export const incidentsApi = new IncidentsApiService(API_BASE_URL);
-export const authApi = new AuthApiService(API_BASE_URL);
-export const settingsApi = new SettingsApiService(API_BASE_URL); // ← NEW
+    delete: (id: string) =>
+        apiFetch<void>(`/incidents/${id}`, { method: "DELETE" }),
+};
 
-// Log for debugging
-console.log("🔧 API Service initialized");
-console.log("🌐 Base URL:", API_BASE_URL);
+// ─── Analytics API ────────────────────────────────────────────────────────────
 
-export default ApiService;
+export const analyticsApi = {
+    getDashboard: () => apiFetch<DashboardMetrics>("/analytics/dashboard"),
+
+    getTimeSeries: (hours = 24) =>
+        apiFetch<Array<Record<string, unknown>>>("/analytics/time-series", {
+            params: { hours },
+        }),
+
+    getSourceDistribution: () =>
+        apiFetch<Array<{ source: string; count: number; percentage: string }>>(
+            "/analytics/sources",
+        ),
+
+    getSeverityDistribution: () =>
+        apiFetch<Array<{ name: string; value: number }>>("/analytics/severity"),
+};
+
+// ─── Settings / Integrations API ──────────────────────────────────────────────
+
+export const settingsApi = {
+    getWebhookConfig: () => apiFetch<WebhookConfig>("/settings/webhook"),
+
+    saveWebhookConfig: (config: WebhookConfig) =>
+        apiFetch<WebhookConfig>("/settings/webhook", {
+            method: "POST",
+            body: JSON.stringify(config),
+        }),
+
+    pullLogs: (params: { limit?: number; since?: string } = {}) =>
+        apiFetch<PullResult>("/settings/webhook/pull", {
+            method: "POST",
+            body: JSON.stringify(params),
+        }),
+
+    getAll: () => apiFetch<Record<string, unknown>>("/settings"),
+
+    saveAll: (data: Record<string, unknown>) =>
+        apiFetch<Record<string, unknown>>("/settings", {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+};
