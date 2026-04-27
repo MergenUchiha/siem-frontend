@@ -102,6 +102,13 @@ export interface PullResult {
     logs: Log[];
 }
 
+export interface AutoPullStatus {
+    running: boolean;
+    intervalSeconds: number;
+    lastPullAt: string | null;
+    lastPullResult: PullResult | null;
+}
+
 // ─── Core fetch helper ────────────────────────────────────────────────────────
 
 async function apiFetch<T>(
@@ -176,6 +183,8 @@ export interface LogFilters {
     severity?: SeverityLevel;
     source?: string;
     search?: string;
+    dateFrom?: string;
+    dateTo?: string;
 }
 
 export const logsApi = {
@@ -264,6 +273,20 @@ export const settingsApi = {
         apiFetch<PullResult>("/settings/webhook/pull", {
             method: "POST",
             body: JSON.stringify(params),
+        }),
+
+    getAutoPullStatus: () =>
+        apiFetch<AutoPullStatus>("/settings/auto-pull"),
+
+    startAutoPull: (intervalSeconds?: number) =>
+        apiFetch<AutoPullStatus>("/settings/auto-pull", {
+            method: "POST",
+            body: JSON.stringify({ intervalSeconds }),
+        }),
+
+    stopAutoPull: () =>
+        apiFetch<AutoPullStatus>("/settings/auto-pull", {
+            method: "DELETE",
         }),
 
     getAll: () => apiFetch<Record<string, unknown>>("/settings"),

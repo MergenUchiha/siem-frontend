@@ -159,6 +159,96 @@ export interface TranslationKeys {
         notConfigured: string;
     };
 
+    // Integrations
+    integrations: {
+        title: string;
+        subtitle: string;
+        notTested: string;
+        testing: string;
+        connected: string;
+        unreachable: string;
+        webhookHttp: string;
+        webhookDesc: string;
+        loadingConfig: string;
+        hostIp: string;
+        port: string;
+        endpointPath: string;
+        apiKey: string;
+        apiKeyHeader: string;
+        test: string;
+        save: string;
+        pullLogsTitle: string;
+        pullLogsDesc: string;
+        fetchLogsVia: string;
+        andStoreLocally: string;
+        maxLogsToFetch: string;
+        pulling: string;
+        fetchLogs: string;
+        configureHostFirst: string;
+        configureHostAbove: string;
+        autoPullTitle: string;
+        autoPullActive: string;
+        autoPullDesc: string;
+        intervalSeconds: string;
+        stop: string;
+        startAutoPull: string;
+        lastPull: string;
+        saved: string;
+        errors: string;
+        liveLogs: string;
+        clear: string;
+        filterBySeverity: string;
+        allSeverities: string;
+        dateFrom: string;
+        dateTo: string;
+        resetFilters: string;
+        firewallRules: string;
+        addRule: string;
+        clearRules: string;
+        activeRules: string;
+        blocked: string;
+        allow: string;
+        deny: string;
+        equals: string;
+        notEquals: string;
+        contains: string;
+        notContains: string;
+        startsWith: string;
+        regex: string;
+        fieldSeverity: string;
+        fieldSource: string;
+        fieldIp: string;
+        fieldMessage: string;
+        fieldUser: string;
+        fieldAction: string;
+        valuePlaceholder: string;
+        noRules: string;
+        passed: string;
+        pullResult: string;
+        fetched: string;
+        andMore: string;
+        visibleInLogViewer: string;
+        enterHostBeforeTesting: string;
+        serverResponded: string;
+        endpointReachable: string;
+        connectionTimedOut: string;
+        couldNotReach: string;
+        settingsSaved: string;
+        failedToSave: string;
+        saveConfigFirst: string;
+        pulledNewLogs: string;
+        refreshLogViewer: string;
+        noLogsReturned: string;
+        fetchedButSaved: string;
+        pullFailed: string;
+        autoPullStopped: string;
+        autoPullStarted: string;
+        every: string;
+        newLogsRealtime: string;
+        failedToggleAutoPull: string;
+        infoTip: string;
+    };
+
     // Settings
     settings: {
         title: string;
@@ -189,6 +279,9 @@ export interface TranslationKeys {
         saved: string;
         language: string;
         selectLanguage: string;
+        theme: string;
+        darkTheme: string;
+        lightTheme: string;
     };
 
     // Login
@@ -399,6 +492,94 @@ export const translations: Record<Language, TranslationKeys> = {
             notificationChannels: "Notification Channels",
             notConfigured: "Not configured",
         },
+        integrations: {
+            title: "Integrations",
+            subtitle: "Connect external log sources to your SIEM",
+            notTested: "Not tested",
+            testing: "Testing…",
+            connected: "Connected",
+            unreachable: "Unreachable",
+            webhookHttp: "Webhook / HTTP",
+            webhookDesc: "Push logs from any service or pull from remote server",
+            loadingConfig: "Loading config…",
+            hostIp: "Host / IP",
+            port: "Port",
+            endpointPath: "Endpoint path",
+            apiKey: "API Key",
+            apiKeyHeader: "(x-api-key header)",
+            test: "Test",
+            save: "Save",
+            pullLogsTitle: "Pull Logs from Remote Server",
+            pullLogsDesc: "Fetch logs via",
+            fetchLogsVia: "Fetch logs via",
+            andStoreLocally: "and store them locally.",
+            maxLogsToFetch: "Max logs to fetch",
+            pulling: "Pulling…",
+            fetchLogs: "Fetch Logs",
+            configureHostFirst: "Configure and save a remote host above first.",
+            configureHostAbove: "Configure and save a remote host above before pulling logs.",
+            autoPullTitle: "Real-time Auto-Pull",
+            autoPullActive: "Active",
+            autoPullDesc: "Automatically fetch logs from the remote server at a set interval and display them in real-time via WebSocket.",
+            intervalSeconds: "Interval (seconds)",
+            stop: "Stop",
+            startAutoPull: "Start Auto-Pull",
+            lastPull: "Last pull:",
+            saved: "saved",
+            errors: "errors",
+            liveLogs: "Live logs",
+            clear: "Clear",
+            filterBySeverity: "Severity",
+            allSeverities: "All levels",
+            dateFrom: "From",
+            dateTo: "To",
+            resetFilters: "Reset",
+            firewallRules: "Firewall Rules",
+            addRule: "Add Rule",
+            clearRules: "Clear All",
+            activeRules: "active rules",
+            blocked: "blocked",
+            allow: "ALLOW",
+            deny: "DENY",
+            equals: "equals",
+            notEquals: "not equals",
+            contains: "contains",
+            notContains: "not contains",
+            startsWith: "starts with",
+            regex: "regex",
+            fieldSeverity: "Severity",
+            fieldSource: "Source",
+            fieldIp: "IP Address",
+            fieldMessage: "Message",
+            fieldUser: "User",
+            fieldAction: "Action",
+            valuePlaceholder: "Value...",
+            noRules: "No rules — all logs pass through",
+            passed: "passed",
+            pullResult: "Pull result",
+            fetched: "Fetched",
+            andMore: "and",
+            visibleInLogViewer: "more (visible in Log Viewer)",
+            enterHostBeforeTesting: "Enter a host before testing",
+            serverResponded: "Server responded with",
+            endpointReachable: "— endpoint reachable",
+            connectionTimedOut: "Connection timed out (5s)",
+            couldNotReach: "Could not reach the server — check host and port",
+            settingsSaved: "Settings saved",
+            failedToSave: "Failed to save settings",
+            saveConfigFirst: "Save the integration config first",
+            pulledNewLogs: "Pulled",
+            refreshLogViewer: "new log(s) — refresh Log Viewer to see them",
+            noLogsReturned: "Remote server returned no logs",
+            fetchedButSaved: "logs but saved 0",
+            pullFailed: "Pull failed",
+            autoPullStopped: "Auto-pull stopped",
+            autoPullStarted: "Auto-pull started",
+            every: "every",
+            newLogsRealtime: "— new logs appear in real-time",
+            failedToggleAutoPull: "Failed to toggle auto-pull",
+            infoTip: "in your backend",
+        },
         settings: {
             title: "Settings",
             subtitle: "Configure system preferences and security options",
@@ -428,9 +609,12 @@ export const translations: Record<Language, TranslationKeys> = {
             saved: "Saved!",
             language: "Language",
             selectLanguage: "Select Language",
+            theme: "Theme",
+            darkTheme: "Dark",
+            lightTheme: "Light",
         },
         login: {
-            title: "SIEM Light",
+            title: "Security Log Analysis Platform",
             subtitle: "Security Information & Event Management",
             loginTab: "Login",
             registerTab: "Register",
@@ -628,6 +812,94 @@ export const translations: Record<Language, TranslationKeys> = {
             notificationChannels: "Каналы уведомлений",
             notConfigured: "Не настроено",
         },
+        integrations: {
+            title: "Интеграции",
+            subtitle: "Подключите внешние источники логов к вашей SIEM",
+            notTested: "Не проверено",
+            testing: "Проверка…",
+            connected: "Подключено",
+            unreachable: "Недоступен",
+            webhookHttp: "Webhook / HTTP",
+            webhookDesc: "Отправляйте логи из любого сервиса или получайте с удалённого сервера",
+            loadingConfig: "Загрузка конфигурации…",
+            hostIp: "Хост / IP",
+            port: "Порт",
+            endpointPath: "Путь эндпоинта",
+            apiKey: "API ключ",
+            apiKeyHeader: "(заголовок x-api-key)",
+            test: "Тест",
+            save: "Сохранить",
+            pullLogsTitle: "Получение логов с удалённого сервера",
+            pullLogsDesc: "Получить логи через",
+            fetchLogsVia: "Получить логи через",
+            andStoreLocally: "и сохранить локально.",
+            maxLogsToFetch: "Максимум логов для загрузки",
+            pulling: "Загрузка…",
+            fetchLogs: "Загрузить логи",
+            configureHostFirst: "Сначала настройте и сохраните удалённый хост.",
+            configureHostAbove: "Настройте и сохраните удалённый хост перед загрузкой логов.",
+            autoPullTitle: "Автоматическое получение в реальном времени",
+            autoPullActive: "Активно",
+            autoPullDesc: "Автоматически загружайте логи с удалённого сервера через заданный интервал и отображайте их в реальном времени через WebSocket.",
+            intervalSeconds: "Интервал (секунды)",
+            stop: "Остановить",
+            startAutoPull: "Запустить авто-загрузку",
+            lastPull: "Последняя загрузка:",
+            saved: "сохранено",
+            errors: "ошибок",
+            liveLogs: "Логи в реальном времени",
+            clear: "Очистить",
+            filterBySeverity: "Серьёзность",
+            allSeverities: "Все уровни",
+            dateFrom: "С",
+            dateTo: "По",
+            resetFilters: "Сброс",
+            firewallRules: "Правила фильтрации",
+            addRule: "Добавить правило",
+            clearRules: "Очистить все",
+            activeRules: "активных правил",
+            blocked: "заблокировано",
+            allow: "РАЗРЕШИТЬ",
+            deny: "ЗАПРЕТИТЬ",
+            equals: "равно",
+            notEquals: "не равно",
+            contains: "содержит",
+            notContains: "не содержит",
+            startsWith: "начинается с",
+            regex: "regex",
+            fieldSeverity: "Серьёзность",
+            fieldSource: "Источник",
+            fieldIp: "IP адрес",
+            fieldMessage: "Сообщение",
+            fieldUser: "Пользователь",
+            fieldAction: "Действие",
+            valuePlaceholder: "Значение...",
+            noRules: "Нет правил — все логи проходят",
+            passed: "прошло",
+            pullResult: "Результат загрузки",
+            fetched: "Получено",
+            andMore: "и ещё",
+            visibleInLogViewer: "ещё (видны в просмотре логов)",
+            enterHostBeforeTesting: "Введите хост перед проверкой",
+            serverResponded: "Сервер ответил",
+            endpointReachable: "— эндпоинт доступен",
+            connectionTimedOut: "Время подключения истекло (5с)",
+            couldNotReach: "Не удалось подключиться к серверу — проверьте хост и порт",
+            settingsSaved: "Настройки сохранены",
+            failedToSave: "Не удалось сохранить настройки",
+            saveConfigFirst: "Сначала сохраните конфигурацию интеграции",
+            pulledNewLogs: "Загружено",
+            refreshLogViewer: "новых логов — обновите просмотр логов",
+            noLogsReturned: "Удалённый сервер не вернул логов",
+            fetchedButSaved: "логов, но сохранено 0",
+            pullFailed: "Загрузка не удалась",
+            autoPullStopped: "Авто-загрузка остановлена",
+            autoPullStarted: "Авто-загрузка запущена",
+            every: "каждые",
+            newLogsRealtime: "— новые логи появляются в реальном времени",
+            failedToggleAutoPull: "Не удалось переключить авто-загрузку",
+            infoTip: "в вашем бэкенде",
+        },
         settings: {
             title: "Настройки",
             subtitle: "Настройка параметров системы и безопасности",
@@ -657,9 +929,12 @@ export const translations: Record<Language, TranslationKeys> = {
             saved: "Сохранено!",
             language: "Язык",
             selectLanguage: "Выбрать язык",
+            theme: "Тема",
+            darkTheme: "Тёмная",
+            lightTheme: "Светлая",
         },
         login: {
-            title: "SIEM Light",
+            title: "Платформа анализа логов безопасности",
             subtitle: "Система управления информацией о безопасности",
             loginTab: "Вход",
             registerTab: "Регистрация",
@@ -855,6 +1130,94 @@ export const translations: Record<Language, TranslationKeys> = {
             notificationChannels: "Habar kanallary",
             notConfigured: "Sazlanmadyk",
         },
+        integrations: {
+            title: "Integrasiýalar",
+            subtitle: "Daşarky log çeşmelerini SIEM-e birikdiriň",
+            notTested: "Barlanmadyk",
+            testing: "Barlanýar…",
+            connected: "Birikdirildi",
+            unreachable: "Elýeterli däl",
+            webhookHttp: "Webhook / HTTP",
+            webhookDesc: "Islendik hyzmatdan log iberiň ýa-da uzakdaky serwerden alyň",
+            loadingConfig: "Sazlama ýüklenýär…",
+            hostIp: "Host / IP",
+            port: "Port",
+            endpointPath: "Endpoint ýoly",
+            apiKey: "API açary",
+            apiKeyHeader: "(x-api-key başlygy)",
+            test: "Barla",
+            save: "Ýatda sakla",
+            pullLogsTitle: "Uzakdaky serwerden loglary al",
+            pullLogsDesc: "Loglary al",
+            fetchLogsVia: "Loglary al",
+            andStoreLocally: "we ýerli ýatda sakla.",
+            maxLogsToFetch: "Iň köp log sany",
+            pulling: "Alynýar…",
+            fetchLogs: "Loglary al",
+            configureHostFirst: "Ilki uzakdaky hosty sazlaň we ýatda saklaň.",
+            configureHostAbove: "Loglary almakdan öň uzakdaky hosty sazlaň we ýatda saklaň.",
+            autoPullTitle: "Hakyky wagtda awtomatik alma",
+            autoPullActive: "Işjeň",
+            autoPullDesc: "Uzakdaky serwerden loglary bellenilen aralykda awtomatik alyň we WebSocket arkaly hakyky wagtda görkeziň.",
+            intervalSeconds: "Aralyk (sekuntlar)",
+            stop: "Sakla",
+            startAutoPull: "Awto-almany başla",
+            lastPull: "Soňky alma:",
+            saved: "ýatda saklandy",
+            errors: "ýalňyşlyk",
+            liveLogs: "Göni loglar",
+            clear: "Arassala",
+            filterBySeverity: "Ähmiýet",
+            allSeverities: "Ähli derejeler",
+            dateFrom: "Başlangyç",
+            dateTo: "Ahyrky",
+            resetFilters: "Arassala",
+            firewallRules: "Süzgüç düzgünleri",
+            addRule: "Düzgün goş",
+            clearRules: "Ählisini arassala",
+            activeRules: "işjeň düzgün",
+            blocked: "bloklandy",
+            allow: "RUGSAT",
+            deny: "GADAGAN",
+            equals: "deň",
+            notEquals: "deň däl",
+            contains: "saklaýar",
+            notContains: "saklamaýar",
+            startsWith: "başlaýar",
+            regex: "regex",
+            fieldSeverity: "Ähmiýet",
+            fieldSource: "Çeşme",
+            fieldIp: "IP salgysy",
+            fieldMessage: "Habar",
+            fieldUser: "Ulanyjy",
+            fieldAction: "Hereket",
+            valuePlaceholder: "Baha...",
+            noRules: "Düzgün ýok — ähli loglar geçýär",
+            passed: "geçdi",
+            pullResult: "Alma netijesi",
+            fetched: "Alyndy",
+            andMore: "we ýene",
+            visibleInLogViewer: "sany (žurnal görnüşinde görünýär)",
+            enterHostBeforeTesting: "Barlamazdan öň host giriziň",
+            serverResponded: "Serwer jogap berdi",
+            endpointReachable: "— endpoint elýeterli",
+            connectionTimedOut: "Birikmek wagty gutardy (5s)",
+            couldNotReach: "Serwere birigip bolmady — host we porty barlaň",
+            settingsSaved: "Sazlamalar ýatda saklandy",
+            failedToSave: "Sazlamalary ýatda saklap bolmady",
+            saveConfigFirst: "Ilki integrasiýa sazlamasyny ýatda saklaň",
+            pulledNewLogs: "Alyndy",
+            refreshLogViewer: "täze log — görmek üçin žurnal görnüşini täzeläň",
+            noLogsReturned: "Uzakdaky serwer log gaýtarmady",
+            fetchedButSaved: "log alyndy, ýöne 0 ýatda saklandy",
+            pullFailed: "Alma şowsuz boldy",
+            autoPullStopped: "Awto-alma saklandy",
+            autoPullStarted: "Awto-alma başlandy",
+            every: "her",
+            newLogsRealtime: "— täze loglar hakyky wagtda peýda bolýar",
+            failedToggleAutoPull: "Awto-almany üýtgedip bolmady",
+            infoTip: "backend-iňizde",
+        },
         settings: {
             title: "Sazlamalar",
             subtitle: "Ulgam sazlamalaryny we howpsuzlyk opsiýalaryny sazlaň",
@@ -884,9 +1247,12 @@ export const translations: Record<Language, TranslationKeys> = {
             saved: "Ýatda saklandy!",
             language: "Dil",
             selectLanguage: "Dil saýlaň",
+            theme: "Tema",
+            darkTheme: "Garaňky",
+            lightTheme: "Ýagty",
         },
         login: {
-            title: "SIEM Light",
+            title: "Howpsuzlyk Loglaryň Derňew Platformasy",
             subtitle: "Howpsuzlyk maglumatlary we wakalar dolandyryş ulgamy",
             loginTab: "Giriş",
             registerTab: "Hasaba durmak",

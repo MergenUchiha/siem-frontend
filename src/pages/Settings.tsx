@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, User, Shield, Bell, Database, Save, Check, Globe } from 'lucide-react';
+import { Settings as SettingsIcon, User, Shield, Bell, Database, Save, Check, Globe, Sun, Moon } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Language } from '../i18n/i18n';
 
 interface SettingsState {
@@ -25,6 +26,7 @@ interface SettingsState {
 
 const Settings: React.FC = () => {
   const { t, language, setLanguage } = useLanguage();
+  const { theme, setTheme } = useTheme();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   
   const [settings, setSettings] = useState<SettingsState>({
@@ -167,6 +169,42 @@ const Settings: React.FC = () => {
               </div>
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Theme Selection */}
+      <div className="bg-gray-800/50 dark:bg-gray-800/50 backdrop-blur border border-gray-700 rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+          {theme === 'dark' ? <Moon className="w-5 h-5 mr-2 text-cyan-400" /> : <Sun className="w-5 h-5 mr-2 text-yellow-400" />}
+          {t.settings.theme}
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button
+            onClick={() => setTheme('dark')}
+            className={`px-4 py-3 rounded-lg border-2 transition-all ${
+              theme === 'dark'
+                ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400'
+                : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-600'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Moon className="w-5 h-5" />
+              <span className="font-medium">{t.settings.darkTheme}</span>
+            </div>
+          </button>
+          <button
+            onClick={() => setTheme('light')}
+            className={`px-4 py-3 rounded-lg border-2 transition-all ${
+              theme === 'light'
+                ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400'
+                : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-600'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Sun className="w-5 h-5" />
+              <span className="font-medium">{t.settings.lightTheme}</span>
+            </div>
+          </button>
         </div>
       </div>
 

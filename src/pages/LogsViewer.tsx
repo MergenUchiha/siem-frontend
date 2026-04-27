@@ -1,16 +1,11 @@
 /**
- * LogsViewer.tsx — refactored
+ * LogsViewer.tsx — server-side pagination
  *
- * Key changes vs original:
- *  - Search is debounced (300 ms) — no re-filter on every keystroke
- *  - Filter state grouped into one object to avoid multiple useState calls
- *  - Export uses a `useMemo`-d filtered list to avoid re-computation
- *  - Create modal uses `useMutation` hook
- *  - Severity badge extracted to a shared <SeverityBadge> component
- *  - No `alert()` calls — uses toast notifications
+ * Logs are fetched from the backend per-page with filters applied server-side.
+ * This removes the 100-log cap and lets users browse all logs in the database.
  */
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
     Search,
     Filter,
@@ -21,9 +16,10 @@ import {
     User,
     Server,
     Activity,
+    RefreshCw,
 } from "lucide-react";
 import type { Log } from "../types";
-import { logsApi } from "../services/api";
+import { logsApi, type LogFilters } from "../services/api";
 import { useLanguage } from "../contexts/LanguageContext";
 import { ToastContainer, useToast } from "../components/ui/Toast";
 import { useDebounce } from "../hooks/useApi";
@@ -60,18 +56,20 @@ interface Filters {
     search: string;
     severity: string;
     source: string;
+    dateFrom: string;
+    dateTo: string;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface LogsViewerProps {
-    logs: Log[];
+    logs?: Log[];
     onRefresh?: () => void;
 }
 
 const LOGS_PER_PAGE = 20;
 
-const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
+const LogsViewer: React.FC<LogsViewerProps> = ({ onRefresh }) => {
     const { t } = useLanguage();
     const toast = useToast();
 
@@ -80,6 +78,8 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
         search: "",
         severity: "all",
         source: "all",
+        dateFrom: "",
+        dateTo: "",
     });
     const [page, setPage] = useState(1);
 
@@ -91,77 +91,107 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
         [],
     );
 
-    // Debounce search so we don't re-filter on every keystroke
     const debouncedSearch = useDebounce(filters.search, 300);
 
-    // ── Sources list ───────────────────────────────────────────────────────────
-    const sources = useMemo(
-        () => [...new Set(logs.map((l) => l.source))],
-        [logs],
-    );
+    // ── Server-side data ──────────────────────────────────────────────────────
+    const [logs, setLogs] = useState<Log[]>([]);
+    const [total, setTotal] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [isLoading, setIsLoading] = useState(false);
+    const [sources, setSources] = useState<string[]>([]);
 
-    // ── Filtered logs ──────────────────────────────────────────────────────────
-    const filteredLogs = useMemo(() => {
-        const q = debouncedSearch.toLowerCase();
-        return logs.filter((log) => {
-            const matchSearch =
-                !q ||
-                log.message.toLowerCase().includes(q) ||
-                log.ip.includes(q) ||
-                (log.user?.toLowerCase().includes(q) ?? false);
-            const matchSeverity =
-                filters.severity === "all" || log.severity === filters.severity;
-            const matchSource =
-                filters.source === "all" || log.source === filters.source;
-            return matchSearch && matchSeverity && matchSource;
-        });
-    }, [logs, debouncedSearch, filters.severity, filters.source]);
+    const fetchLogs = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const params: LogFilters = {
+                page,
+                limit: LOGS_PER_PAGE,
+            };
+            if (filters.severity !== "all") params.severity = filters.severity as any;
+            if (filters.source !== "all") params.source = filters.source;
+            if (debouncedSearch) params.search = debouncedSearch;
+            if (filters.dateFrom) params.dateFrom = filters.dateFrom;
+            if (filters.dateTo) params.dateTo = filters.dateTo;
 
-    // ── Pagination ─────────────────────────────────────────────────────────────
-    const totalPages = Math.max(
-        1,
-        Math.ceil(filteredLogs.length / LOGS_PER_PAGE),
-    );
+            const res = await logsApi.getAll(params);
+            setLogs(res.data ?? []);
+            setTotal(res.total);
+            setTotalPages(res.totalPages);
+        } catch (err: any) {
+            toast.error(err.message ?? "Failed to load logs");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [page, filters.severity, filters.source, debouncedSearch, filters.dateFrom, filters.dateTo]);
+
+    // Fetch sources once on mount
+    useEffect(() => {
+        logsApi.getAll({ limit: 1000 }).then((res) => {
+            const uniqueSources = [...new Set((res.data ?? []).map((l) => l.source))];
+            setSources(uniqueSources);
+        }).catch(() => {});
+    }, []);
+
+    // Refetch when page or filters change
+    useEffect(() => {
+        fetchLogs();
+    }, [fetchLogs]);
+
+    // ── Pagination numbers ────────────────────────────────────────────────────
     const safePage = Math.min(page, totalPages);
     const start = (safePage - 1) * LOGS_PER_PAGE;
-    const pageLogs = filteredLogs.slice(start, start + LOGS_PER_PAGE);
 
     const pageNumbers = useMemo(() => {
-        const total = Math.min(5, totalPages);
+        const count = Math.min(5, totalPages);
         const base = Math.max(
             1,
-            Math.min(safePage - 2, totalPages - total + 1),
+            Math.min(safePage - 2, totalPages - count + 1),
         );
-        return Array.from({ length: total }, (_, i) => base + i);
+        return Array.from({ length: count }, (_, i) => base + i);
     }, [totalPages, safePage]);
 
     // ── Export ─────────────────────────────────────────────────────────────────
-    const handleExport = useCallback(() => {
-        const header = [
-            t.logs.timestamp,
-            t.logs.severity,
-            t.logs.source,
-            t.logs.message,
-            t.logs.ipAddress,
-            t.logs.user,
-        ];
-        const rows = filteredLogs.map((log) => [
-            new Date(log.timestamp).toLocaleString(),
-            log.severity,
-            log.source,
-            `"${log.message.replace(/"/g, '""')}"`,
-            log.ip,
-            log.user ?? "",
-        ]);
-        const csv = [header, ...rows].map((r) => r.join(",")).join("\n");
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `siem-logs-${new Date().toISOString().slice(0, 10)}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }, [filteredLogs, t]);
+    const handleExport = useCallback(async () => {
+        try {
+            // Fetch all filtered logs for export (up to 10000)
+            const params: LogFilters = { limit: 10000 };
+            if (filters.severity !== "all") params.severity = filters.severity as any;
+            if (filters.source !== "all") params.source = filters.source;
+            if (debouncedSearch) params.search = debouncedSearch;
+            if (filters.dateFrom) params.dateFrom = filters.dateFrom;
+            if (filters.dateTo) params.dateTo = filters.dateTo;
+
+            const res = await logsApi.getAll(params);
+            const allLogs = res.data ?? [];
+
+            const header = [
+                t.logs.timestamp,
+                t.logs.severity,
+                t.logs.source,
+                t.logs.message,
+                t.logs.ipAddress,
+                t.logs.user,
+            ];
+            const rows = allLogs.map((log) => [
+                new Date(log.timestamp).toLocaleString(),
+                log.severity,
+                log.source,
+                `"${log.message.replace(/"/g, '""')}"`,
+                log.ip,
+                log.user ?? "",
+            ]);
+            const csv = [header, ...rows].map((r) => r.join(",")).join("\n");
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `siem-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err: any) {
+            toast.error(err.message ?? "Export failed");
+        }
+    }, [filters, debouncedSearch, t]);
 
     // ── Create log modal ───────────────────────────────────────────────────────
     const [showCreate, setShowCreate] = useState(false);
@@ -183,6 +213,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
             toast.success(t.notificationTypes.logCreatedMessage);
             setShowCreate(false);
             (e.target as HTMLFormElement).reset();
+            fetchLogs();
             onRefresh?.();
         } catch (err: any) {
             toast.error(err.message ?? "Failed to create log");
@@ -266,6 +297,34 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
                         ))}
                     </select>
                 </div>
+
+                {/* Date range filters */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                            {t.integrations.dateFrom}
+                        </label>
+                        <input
+                            type="date"
+                            value={filters.dateFrom}
+                            onChange={(e) => setFilter("dateFrom", e.target.value)}
+                            className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                            {t.integrations.dateTo}
+                        </label>
+                        <input
+                            type="date"
+                            value={filters.dateTo}
+                            onChange={(e) => setFilter("dateTo", e.target.value)}
+                            className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
+                        />
+                    </div>
+                </div>
             </div>
 
             {/* Table */}
@@ -292,7 +351,17 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-700">
-                            {pageLogs.length === 0 ? (
+                            {isLoading ? (
+                                <tr>
+                                    <td
+                                        colSpan={6}
+                                        className="px-6 py-12 text-center text-gray-400"
+                                    >
+                                        <RefreshCw className="w-5 h-5 animate-spin inline mr-2" />
+                                        {t.common.loading}...
+                                    </td>
+                                </tr>
+                            ) : logs.length === 0 ? (
                                 <tr>
                                     <td
                                         colSpan={6}
@@ -302,7 +371,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
                                     </td>
                                 </tr>
                             ) : (
-                                pageLogs.map((log) => (
+                                logs.map((log) => (
                                     <tr
                                         key={log.id}
                                         onClick={() => setSelectedLog(log)}
@@ -356,9 +425,9 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ logs, onRefresh }) => {
                 {/* Pagination */}
                 <div className="bg-gray-900/50 px-6 py-4 border-t border-gray-700 flex items-center justify-between">
                     <p className="text-sm text-gray-400">
-                        {t.logs.showing} {start + 1}–
-                        {Math.min(start + LOGS_PER_PAGE, filteredLogs.length)}{" "}
-                        {t.logs.of} {filteredLogs.length}
+                        {t.logs.showing} {total === 0 ? 0 : start + 1}–
+                        {Math.min(start + LOGS_PER_PAGE, total)}{" "}
+                        {t.logs.of} {total}
                     </p>
                     <div className="flex items-center space-x-2">
                         <button

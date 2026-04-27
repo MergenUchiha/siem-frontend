@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Shield, Lock, Mail, AlertCircle } from 'lucide-react';
+import { Lock, Mail, AlertCircle } from 'lucide-react';
 import { authApi } from '../services/api';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface LoginProps {
   onLogin: () => void;
 }
+
+const APP_NAME = 'Security Log Analysis Platform';
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const { t } = useLanguage();
@@ -46,7 +48,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const handleQuickLogin = async () => {
     setLoading(true);
     setError('');
-    
     try {
       const response = await authApi.login('admin@siem.local', 'REDACTED-ROTATE-ADMIN-PASSWORD');
       localStorage.setItem('token', response.token);
@@ -62,31 +63,34 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-cyan-950 flex items-center justify-center p-4">
-      <div className="absolute inset-0 overflow-hidden">
+      {/* Background glow blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md">
+        {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl mb-4 relative">
-            <Shield className="w-10 h-10 text-white" />
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full animate-pulse">
-              <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-75" />
-            </div>
+          {/* University logo */}
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl mb-4 shadow-lg shadow-cyan-500/20 border border-cyan-500/20 overflow-hidden">
+            <img
+              src="/logo.jpeg"
+              alt="Oguz Han Engineering and Technology University of Turkmenistan"
+              className="w-full h-full object-contain"
+            />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">{t.login.title}</h1>
-          <p className="text-gray-400">{t.login.subtitle}</p>
+          <h1 className="text-2xl font-bold text-white mb-2 leading-tight">{APP_NAME}</h1>
+          <p className="text-gray-400 text-sm">{t.login.subtitle}</p>
         </div>
 
         <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-700 rounded-2xl p-8 shadow-2xl">
+          {/* Tab switcher */}
           <div className="flex space-x-2 mb-6 bg-gray-800/50 rounded-lg p-1">
             <button
               onClick={() => setIsLogin(true)}
               className={`flex-1 py-2 rounded-md transition-all ${
-                isLogin
-                  ? 'bg-cyan-500 text-white'
-                  : 'text-gray-400 hover:text-white'
+                isLogin ? 'bg-cyan-500 text-white' : 'text-gray-400 hover:text-white'
               }`}
             >
               {t.login.loginTab}
@@ -94,9 +98,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <button
               onClick={() => setIsLogin(false)}
               className={`flex-1 py-2 rounded-md transition-all ${
-                !isLogin
-                  ? 'bg-cyan-500 text-white'
-                  : 'text-gray-400 hover:text-white'
+                !isLogin ? 'bg-cyan-500 text-white' : 'text-gray-400 hover:text-white'
               }`}
             >
               {t.login.registerTab}

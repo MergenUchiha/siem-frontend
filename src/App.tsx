@@ -10,6 +10,7 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Integrations from "./pages/Integrations";
 import { LanguageProvider, useLanguage } from "./contexts/LanguageContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 import { logsApi, incidentsApi, type Log, type Incident } from "./services/api";
 
 type TabId =
@@ -46,7 +47,7 @@ function PageRouter({
         case "dashboard":
             return <Dashboard logs={logs} incidents={incidents} />;
         case "logs":
-            return <LogsViewer logs={logs} onRefresh={onRefresh} />;
+            return <LogsViewer onRefresh={onRefresh} />;
         case "incidents":
             return <Incidents incidents={incidents} onRefresh={onRefresh} />;
         case "analytics":
@@ -304,8 +305,10 @@ function AppContent() {
 
 export default function App() {
     return (
-        <LanguageProvider>
-            <AppContent />
-        </LanguageProvider>
+        <ThemeProvider>
+            <LanguageProvider>
+                <AppContent />
+            </LanguageProvider>
+        </ThemeProvider>
     );
 }
