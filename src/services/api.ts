@@ -1,12 +1,7 @@
 /**
- * api.ts — centralized API layer
- *
- * Improvements over the original:
- *  - Single `apiFetch` helper handles auth headers, JSON parsing and unified error format
- *  - All services use the helper — no copy-pasted getAuthHeaders() across classes
- *  - Proper TypeScript generics on every method
- *  - No mixed `fetch` + `axios` — pure fetch everywhere
- *  - `ApiError` class lets callers do `err instanceof ApiError` and read `.status`
+ * The single place that talks to the backend. Every call goes through
+ * `apiFetch`, which attaches the bearer token, parses the JSON and turns a
+ * failure into an `ApiError` carrying the HTTP status.
  */
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -17,13 +12,14 @@ const BASE_URL =
 // ─── Error type ───────────────────────────────────────────────────────────────
 
 export class ApiError extends Error {
-    constructor(
-        public readonly status: number,
-        message: string,
-        public readonly data?: unknown,
-    ) {
+    readonly status: number;
+    readonly data?: unknown;
+
+    constructor(status: number, message: string, data?: unknown) {
         super(message);
         this.name = "ApiError";
+        this.status = status;
+        this.data = data;
     }
 }
 
@@ -92,8 +88,19 @@ export interface WebhookConfig {
     host: string;
     port: string;
     path: string;
+    /** Sent when changing it; the server never sends one back. */
     apiKey: string;
+    slackWebhookUrl: string;
 }
+
+/**
+ * What `GET /settings/webhook` returns. The shared key stays on the server:
+ * the form shows whether one is stored, and submitting an empty `apiKey`
+ * keeps it.
+ */
+export type StoredWebhookConfig = Omit<WebhookConfig, "apiKey"> & {
+    apiKeySet: boolean;
+};
 
 export interface PullResult {
     fetched: number;
@@ -148,8 +155,7 @@ async function apiFetch<T>(
             errData = null;
         }
         const message =
-            (errData as any)?.message ??
-            `HTTP ${res.status}: ${res.statusText}`;
+            readMessage(errData) ?? `HTTP ${res.status}: ${res.statusText}`;
         throw new ApiError(res.status, message, errData);
     }
 
@@ -159,7 +165,25 @@ async function apiFetch<T>(
     return res.json() as Promise<T>;
 }
 
+/** The backend answers errors with `{ message }`, sometimes an array of them. */
+function readMessage(payload: unknown): string | null {
+    if (!payload || typeof payload !== "object") return null;
+    const message = (payload as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+    if (Array.isArray(message)) return message.join(", ");
+    return null;
+}
+
 // ─── Auth API ─────────────────────────────────────────────────────────────────
+
+export type UserRole = "admin" | "analyst" | "viewer";
+
+export interface CreateUserPayload {
+    email: string;
+    password: string;
+    name: string;
+    role?: UserRole;
+}
 
 export const authApi = {
     login: (email: string, password: string) =>
@@ -168,11 +192,15 @@ export const authApi = {
             body: JSON.stringify({ email, password }),
         }),
 
-    register: (email: string, password: string, name: string) =>
-        apiFetch<AuthResponse>("/auth/register", {
+    /** Admin only. There is no public registration. */
+    createUser: (payload: CreateUserPayload) =>
+        apiFetch<UserProfile>("/auth/users", {
             method: "POST",
-            body: JSON.stringify({ email, password, name }),
+            body: JSON.stringify(payload),
         }),
+
+    /** Admin only. */
+    listUsers: () => apiFetch<UserProfile[]>("/auth/users"),
 };
 
 // ─── Logs API ─────────────────────────────────────────────────────────────────
@@ -189,7 +217,7 @@ export interface LogFilters {
 
 export const logsApi = {
     getAll: (filters: LogFilters = {}) =>
-        apiFetch<PaginatedResponse<Log>>("/logs", { params: filters as any }),
+        apiFetch<PaginatedResponse<Log>>("/logs", { params: { ...filters } }),
 
     getOne: (id: string) => apiFetch<Log>(`/logs/${id}`),
 
@@ -197,6 +225,11 @@ export const logsApi = {
         apiFetch<Log>("/logs", { method: "POST", body: JSON.stringify(data) }),
 
     getSources: () => apiFetch<string[]>("/logs/sources"),
+
+    getStats: () =>
+        apiFetch<{ total: number; severityCounts: Record<string, number> }>(
+            "/logs/stats",
+        ),
 };
 
 // ─── Incidents API ────────────────────────────────────────────────────────────
@@ -219,7 +252,7 @@ export interface UpdateIncidentPayload {
 
 export const incidentsApi = {
     getAll: (filters?: { status?: IncidentStatus; severity?: SeverityLevel }) =>
-        apiFetch<Incident[]>("/incidents", { params: filters as any }),
+        apiFetch<Incident[]>("/incidents", { params: { ...filters } }),
 
     getOne: (id: string) => apiFetch<Incident>(`/incidents/${id}`),
 
@@ -256,18 +289,97 @@ export const analyticsApi = {
 
     getSeverityDistribution: () =>
         apiFetch<Array<{ name: string; value: number }>>("/analytics/severity"),
+
+    getTopIPs: (limit = 10) =>
+        apiFetch<Array<{ ip: string; requests: number }>>(
+            "/analytics/top-ips",
+            { params: { limit } },
+        ),
+};
+
+// ─── Alerts API ───────────────────────────────────────────────────────────────
+
+export type AlertConditionField = "severity" | "source" | "message" | "ip";
+export type AlertConditionOperator = "equals" | "contains";
+
+export interface AlertCondition {
+    field: AlertConditionField;
+    operator: AlertConditionOperator;
+    value: string;
+}
+
+export type AlertAction =
+    | { type: "email"; target: string }
+    | { type: "slack"; target: string }
+    | { type: "webhook"; target: string }
+    | { type: "create_incident"; target?: string };
+
+export interface AlertRule {
+    id: string;
+    name: string;
+    description: string;
+    severity: SeverityLevel;
+    enabled: boolean;
+    /** Null when the stored JSON could not be read; the server skips such rules. */
+    condition: AlertCondition | null;
+    action: AlertAction | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CreateAlertPayload {
+    name: string;
+    description: string;
+    severity: SeverityLevel;
+    enabled?: boolean;
+    condition: AlertCondition;
+    action: AlertAction;
+}
+
+export const alertsApi = {
+    getAll: () => apiFetch<AlertRule[]>("/alerts"),
+
+    getOne: (id: string) => apiFetch<AlertRule>(`/alerts/${id}`),
+
+    /** Admin only. */
+    create: (data: CreateAlertPayload) =>
+        apiFetch<AlertRule>("/alerts", {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+
+    /** Admin only. */
+    update: (id: string, data: Partial<CreateAlertPayload>) =>
+        apiFetch<AlertRule>(`/alerts/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+        }),
+
+    /** Analyst or admin. */
+    toggle: (id: string) =>
+        apiFetch<AlertRule>(`/alerts/${id}/toggle`, { method: "PATCH" }),
+
+    /** Admin only. */
+    delete: (id: string) =>
+        apiFetch<AlertRule>(`/alerts/${id}`, { method: "DELETE" }),
 };
 
 // ─── Settings / Integrations API ──────────────────────────────────────────────
 
 export const settingsApi = {
-    getWebhookConfig: () => apiFetch<WebhookConfig>("/settings/webhook"),
+    getWebhookConfig: () => apiFetch<StoredWebhookConfig>("/settings/webhook"),
 
     saveWebhookConfig: (config: WebhookConfig) =>
-        apiFetch<WebhookConfig>("/settings/webhook", {
+        apiFetch<StoredWebhookConfig>("/settings/webhook", {
             method: "POST",
             body: JSON.stringify(config),
         }),
+
+    testWebhookConfig: () =>
+        apiFetch<{ reachable: boolean; status?: number; message: string }>(
+            "/settings/webhook/test",
+            { method: "POST" },
+        ),
 
     pullLogs: (params: { limit?: number; since?: string } = {}) =>
         apiFetch<PullResult>("/settings/webhook/pull", {

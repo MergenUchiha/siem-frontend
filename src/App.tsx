@@ -11,7 +11,8 @@ import Login from "./pages/Login";
 import Integrations from "./pages/Integrations";
 import { LanguageProvider, useLanguage } from "./contexts/LanguageContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { logsApi, incidentsApi, type Log, type Incident } from "./services/api";
+import { ApiError, logsApi, incidentsApi, type Log, type Incident } from "./services/api";
+import ws from "./services/websocket";
 
 type TabId =
     | "dashboard"
@@ -106,7 +107,7 @@ function AppContent() {
         () => !!localStorage.getItem("token"),
     );
 
-    // ── Сохраняем активный таб в localStorage ──────────────────────────────────
+    // The active tab survives a reload.
     const [activeTab, setActiveTab] = useState<TabId>(() => {
         const saved = localStorage.getItem("activeTab") as TabId;
         return saved && VALID_TABS.includes(saved) ? saved : "dashboard";
@@ -130,6 +131,21 @@ function AppContent() {
     const [dataError, setDataError] = useState<string | null>(null);
     const logIdsRef = useRef<Set<string>>(new Set());
 
+    // Declared before the effects that list it as a dependency: a `const` read
+    // from a dependency array during render is still in the temporal dead zone
+    // if it is declared further down, which throws on the first render.
+    const handleLogout = useCallback(() => {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("notifications");
+        localStorage.removeItem("activeTab");
+        logIdsRef.current.clear();
+        setIsAuthenticated(false);
+        setActiveTab("dashboard");
+        setLogs([]);
+        setIncidents([]);
+    }, []);
+
     const loadData = useCallback(async () => {
         if (!isAuthenticated) return;
         setIsLoading(true);
@@ -143,13 +159,18 @@ function AppContent() {
             logIdsRef.current = new Set(logsData.map((l) => l.id));
             setLogs(logsData);
             setIncidents(Array.isArray(incidentsRes) ? incidentsRes : []);
-        } catch (err: any) {
-            setDataError(err.message ?? "Failed to load data");
-            if (err.status === 401) handleLogout();
+        } catch (err) {
+            if (err instanceof ApiError && err.status === 401) {
+                handleLogout();
+                return;
+            }
+            setDataError(
+                err instanceof ApiError ? err.message : "Failed to load data",
+            );
         } finally {
             setIsLoading(false);
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, handleLogout]);
 
     useEffect(() => {
         if (isAuthenticated) loadData();
@@ -159,62 +180,57 @@ function AppContent() {
     useEffect(() => {
         if (!isAuthenticated) return;
 
-        let cleanup: (() => void) | undefined;
+        ws.connect();
+        // The gateway now checks the handshake token; a rejected connection
+        // means the stored token is stale, so drop it rather than reconnecting
+        // in a loop.
+        ws.setUnauthorizedHandler(() => handleLogout());
 
-        import("./services/websocket").then(({ default: ws }) => {
-            ws.connect();
+        const onLog = (log: Log) => {
+            if (logIdsRef.current.has(log.id)) return;
+            logIdsRef.current.add(log.id);
+            setLogs((prev) => [log, ...prev.slice(0, 199)]);
 
-            const onLog = (log: Log) => {
-                if (logIdsRef.current.has(log.id)) return;
-                logIdsRef.current.add(log.id);
-                setLogs((prev) => [log, ...prev.slice(0, 199)]);
-
-                if (log.severity === "critical" || log.severity === "high") {
-                    (window as any).addNotification?.({
-                        title: `${log.severity.toUpperCase()} ${t.notificationTypes.newSecurityEvent}`,
-                        message: log.message,
-                        type:
-                            log.severity === "critical"
-                                ? "critical"
-                                : "warning",
-                        time: t.time.justNow,
-                    });
-                }
-            };
-
-            const onIncident = (incident: Incident) => {
-                setIncidents((prev) => {
-                    if (prev.some((i) => i.id === incident.id)) return prev;
-                    return [incident, ...prev];
-                });
-                (window as any).addNotification?.({
-                    title: t.notificationTypes.newSecurityIncident,
-                    message: incident.title,
-                    type:
-                        incident.severity === "critical"
-                            ? "critical"
-                            : "warning",
+            if (log.severity === "critical" || log.severity === "high") {
+                window.addNotification?.({
+                    title: `${log.severity.toUpperCase()} ${t.notificationTypes.newSecurityEvent}`,
+                    message: log.message,
+                    type: log.severity === "critical" ? "critical" : "warning",
                     time: t.time.justNow,
                 });
-            };
+            }
+        };
 
-            ws.onNewLog(onLog);
-            ws.onNewIncident(onIncident);
+        const onIncident = (incident: Incident) => {
+            setIncidents((prev) => {
+                if (prev.some((i) => i.id === incident.id)) return prev;
+                return [incident, ...prev];
+            });
+            window.addNotification?.({
+                title: t.notificationTypes.newSecurityIncident,
+                message: incident.title,
+                type: incident.severity === "critical" ? "critical" : "warning",
+                time: t.time.justNow,
+            });
+        };
 
-            cleanup = () => {
-                ws.offNewLog(onLog);
-                ws.offNewIncident(onIncident);
-                ws.disconnect();
-            };
-        });
+        ws.onNewLog(onLog);
+        ws.onNewIncident(onIncident);
 
-        return () => cleanup?.();
-    }, [isAuthenticated, t]);
+        return () => {
+            ws.setUnauthorizedHandler(null);
+            ws.offNewLog(onLog);
+            ws.offNewIncident(onIncident);
+            ws.disconnect();
+        };
+    }, [isAuthenticated, t, handleLogout]);
 
     const handleLogin = useCallback(() => {
         setIsAuthenticated(true);
-        const user = JSON.parse(localStorage.getItem("user") ?? "{}");
-        (window as any).addNotification?.({
+        const user = JSON.parse(localStorage.getItem("user") ?? "{}") as {
+            name?: string;
+        };
+        window.addNotification?.({
             title: t.notificationTypes.welcome,
             message: `${t.notificationTypes.welcomeMessage} ${user.name}`,
             type: "info",
@@ -222,21 +238,9 @@ function AppContent() {
         });
     }, [t]);
 
-    const handleLogout = useCallback(() => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        localStorage.removeItem("notifications");
-        localStorage.removeItem("activeTab");
-        logIdsRef.current.clear();
-        setIsAuthenticated(false);
-        setActiveTab("dashboard");
-        setLogs([]);
-        setIncidents([]);
-    }, []);
-
     const handleRefresh = useCallback(() => {
         loadData();
-        (window as any).addNotification?.({
+        window.addNotification?.({
             title: t.notificationTypes.dataRefreshed,
             message: t.notificationTypes.dataRefreshedMessage,
             type: "info",

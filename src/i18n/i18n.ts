@@ -157,6 +157,10 @@ export interface TranslationKeys {
         disable: string;
         notificationChannels: string;
         notConfigured: string;
+        noRules: string;
+        rulesUsingChannel: string;
+        emailNotDelivered: string;
+        confirmDelete: string;
     };
 
     // Integrations
@@ -175,6 +179,7 @@ export interface TranslationKeys {
         endpointPath: string;
         apiKey: string;
         apiKeyHeader: string;
+        apiKeyStored: string;
         test: string;
         save: string;
         pullLogsTitle: string;
@@ -289,15 +294,11 @@ export interface TranslationKeys {
         title: string;
         subtitle: string;
         loginTab: string;
-        registerTab: string;
+        accountsByAdmin: string;
         emailPlaceholder: string;
         passwordPlaceholder: string;
         signIn: string;
-        createAccount: string;
         processing: string;
-        quickAccess: string;
-        demoLogin: string;
-        demoCredentials: string;
         protectedBy: string;
     };
 
@@ -491,6 +492,11 @@ export const translations: Record<Language, TranslationKeys> = {
             disable: "Disable",
             notificationChannels: "Notification Channels",
             notConfigured: "Not configured",
+            noRules: "No alert rules yet.",
+            rulesUsingChannel: "rules use this channel",
+            emailNotDelivered:
+                "Email actions are recorded in the server log; no mail transport is configured.",
+            confirmDelete: "Delete the alert rule",
         },
         integrations: {
             title: "Integrations",
@@ -507,6 +513,7 @@ export const translations: Record<Language, TranslationKeys> = {
             endpointPath: "Endpoint path",
             apiKey: "API Key",
             apiKeyHeader: "(x-api-key header)",
+            apiKeyStored: "A key is stored — leave blank to keep it",
             test: "Test",
             save: "Save",
             pullLogsTitle: "Pull Logs from Remote Server",
@@ -616,16 +623,13 @@ export const translations: Record<Language, TranslationKeys> = {
         login: {
             title: "Security Log Analysis Platform",
             subtitle: "Security Information & Event Management",
-            loginTab: "Login",
-            registerTab: "Register",
+            loginTab: "Sign in",
+            accountsByAdmin:
+                "Accounts are created by an administrator. Contact one if you need access.",
             emailPlaceholder: "admin@siem.local",
             passwordPlaceholder: "••••••••",
             signIn: "Sign In",
-            createAccount: "Create Account",
             processing: "Processing...",
-            quickAccess: "Quick Access",
-            demoLogin: "Login as Demo Admin",
-            demoCredentials: "Email: admin@siem.local | Password: REDACTED-ROTATE-ADMIN-PASSWORD",
             protectedBy: "Protected by enterprise-grade security",
         },
         severity: {
@@ -811,6 +815,11 @@ export const translations: Record<Language, TranslationKeys> = {
             disable: "Отключить",
             notificationChannels: "Каналы уведомлений",
             notConfigured: "Не настроено",
+            noRules: "Правил пока нет.",
+            rulesUsingChannel: "правил используют этот канал",
+            emailNotDelivered:
+                "Действия email пишутся в лог сервера — отправка почты не настроена.",
+            confirmDelete: "Удалить правило",
         },
         integrations: {
             title: "Интеграции",
@@ -827,6 +836,7 @@ export const translations: Record<Language, TranslationKeys> = {
             endpointPath: "Путь эндпоинта",
             apiKey: "API ключ",
             apiKeyHeader: "(заголовок x-api-key)",
+            apiKeyStored: "Ключ сохранён — оставьте пустым, чтобы не менять",
             test: "Тест",
             save: "Сохранить",
             pullLogsTitle: "Получение логов с удалённого сервера",
@@ -937,15 +947,12 @@ export const translations: Record<Language, TranslationKeys> = {
             title: "Платформа анализа логов безопасности",
             subtitle: "Система управления информацией о безопасности",
             loginTab: "Вход",
-            registerTab: "Регистрация",
+            accountsByAdmin:
+                "Учётные записи заводит администратор. Обратитесь к нему за доступом.",
             emailPlaceholder: "admin@siem.local",
             passwordPlaceholder: "••••••••",
             signIn: "Войти",
-            createAccount: "Создать аккаунт",
             processing: "Обработка...",
-            quickAccess: "Быстрый доступ",
-            demoLogin: "Войти как демо администратор",
-            demoCredentials: "Email: admin@siem.local | Пароль: REDACTED-ROTATE-ADMIN-PASSWORD",
             protectedBy: "Защищено корпоративной безопасностью",
         },
         severity: {
@@ -1129,6 +1136,11 @@ export const translations: Record<Language, TranslationKeys> = {
             disable: "Öçürmek",
             notificationChannels: "Habar kanallary",
             notConfigured: "Sazlanmadyk",
+            noRules: "Entek düzgün ýok.",
+            rulesUsingChannel: "düzgün bu kanaly ulanýar",
+            emailNotDelivered:
+                "Email hereketleri serweriň žurnalyna ýazylýar — poçta ugratmak sazlanmadyk.",
+            confirmDelete: "Düzgüni pozmaly",
         },
         integrations: {
             title: "Integrasiýalar",
@@ -1145,6 +1157,7 @@ export const translations: Record<Language, TranslationKeys> = {
             endpointPath: "Endpoint ýoly",
             apiKey: "API açary",
             apiKeyHeader: "(x-api-key başlygy)",
+            apiKeyStored: "Açar saklanýar — üýtgetmezlik üçin boş goýuň",
             test: "Barla",
             save: "Ýatda sakla",
             pullLogsTitle: "Uzakdaky serwerden loglary al",
@@ -1255,15 +1268,12 @@ export const translations: Record<Language, TranslationKeys> = {
             title: "Howpsuzlyk Loglaryň Derňew Platformasy",
             subtitle: "Howpsuzlyk maglumatlary we wakalar dolandyryş ulgamy",
             loginTab: "Giriş",
-            registerTab: "Hasaba durmak",
+            accountsByAdmin:
+                "Hasaplary administrator döredýär. Giriş üçin oňa ýüz tutuň.",
             emailPlaceholder: "admin@siem.local",
             passwordPlaceholder: "••••••••",
             signIn: "Gir",
-            createAccount: "Hasap döret",
             processing: "Işlenýär...",
-            quickAccess: "Çalt giriş",
-            demoLogin: "Demo admin hökmünde gir",
-            demoCredentials: "Email: admin@siem.local | Parol: REDACTED-ROTATE-ADMIN-PASSWORD",
             protectedBy: "Korporatiw howpsuzlyk bilen goralýar",
         },
         severity: {
