@@ -22,11 +22,12 @@ import {
 } from "lucide-react";
 import { ToastContainer, useToast } from "../components/ui/Toast";
 import {
+  ApiError,
   settingsApi,
-  WebhookConfig,
-  PullResult,
-  AutoPullStatus,
-  Log,
+  type WebhookConfig,
+  type PullResult,
+  type AutoPullStatus,
+  type Log,
 } from "../services/api";
 import websocketService from "../services/websocket";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -171,7 +172,7 @@ const PullResultPanel: React.FC<{ result: PullResult; labels: { pullResult: stri
     </div>
     {result.logs.length > 0 && (
       <div className="space-y-1.5 max-h-48 overflow-y-auto">
-        {result.logs.slice(0, 10).map((log: any, i: number) => (
+        {result.logs.slice(0, 10).map((log, i) => (
           <div
             key={i}
             className="flex items-center gap-2 px-2 py-1 bg-gray-800/50 rounded text-xs"
@@ -213,7 +214,15 @@ const defaultConfig: WebhookConfig = {
   port: "443",
   path: "/api/logs/ingest",
   apiKey: "",
+  slackWebhookUrl: "",
 };
+
+/** The backend enforces a floor of 10 seconds between pulls. */
+/**
+ * The backend refuses anything faster. The picker used to offer one second,
+ * which meant one request per second to the remote host, for ever.
+ */
+const MIN_PULL_INTERVAL_SECONDS = 10;
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -222,6 +231,9 @@ const Integrations: React.FC = () => {
   const { t } = useLanguage();
 
   const [config, setConfig] = useState<WebhookConfig>(defaultConfig);
+  // The server never returns the shared key, so the field is write-only:
+  // leaving it blank keeps whatever is stored.
+  const [apiKeyStored, setApiKeyStored] = useState(false);
   const [status, setStatus] = useState<ConnectionStatus>("idle");
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -229,7 +241,9 @@ const Integrations: React.FC = () => {
   const [pullResult, setPullResult] = useState<PullResult | null>(null);
   const [pullLimit, setPullLimit] = useState<number>(100);
   const [autoPull, setAutoPull] = useState<AutoPullStatus | null>(null);
-  const [autoPullInterval, setAutoPullInterval] = useState<number>(1);
+  const [autoPullInterval, setAutoPullInterval] = useState<number>(
+    Math.max(30, MIN_PULL_INTERVAL_SECONDS),
+  );
   const [isTogglingAutoPull, setIsTogglingAutoPull] = useState(false);
   const [realtimeLogs, setRealtimeLogs] = useState<Log[]>([]);
   const realtimeLogsRef = useRef<HTMLDivElement>(null);
@@ -289,14 +303,14 @@ const Integrations: React.FC = () => {
   useEffect(() => {
     settingsApi
       .getWebhookConfig()
-      .then(setConfig)
+      .then(({ apiKeySet, ...stored }) => {
+        setApiKeyStored(apiKeySet);
+        setConfig({ ...stored, apiKey: "" });
+      })
       .catch(() => {
-        try {
-          const saved = localStorage.getItem("siem_webhook_config");
-          if (saved) setConfig({ ...defaultConfig, ...JSON.parse(saved) });
-        } catch {
-          /* ignore */
-        }
+        // No local cache to fall back on: the integration config decides which
+        // host the server dials, so the server is the only source of truth.
+        setConfig(defaultConfig);
       })
       .finally(() => setIsLoading(false));
 
@@ -320,28 +334,22 @@ const Integrations: React.FC = () => {
     }
     setStatus("testing");
     try {
-      const protocol = config.port === "443" ? "https" : "http";
-      const url = `${protocol}://${config.host}:${config.port}${config.path}`;
-      const res = await fetch(url, {
-        method: "HEAD",
-        headers: config.apiKey ? { "x-api-key": config.apiKey } : {},
-        signal: AbortSignal.timeout(5000),
-      });
-      if (res.status < 600) {
+      // Probed by the server: a cross-origin HEAD from the browser cannot
+      // succeed, and doing it here would send the shared key out of the page.
+      const result = await settingsApi.testWebhookConfig();
+      if (result.reachable) {
         setStatus("ok");
         toast.success(
-          `${t.integrations.serverResponded} ${res.status} ${t.integrations.endpointReachable}`,
+          `${t.integrations.serverResponded} ${result.status} ${t.integrations.endpointReachable}`,
         );
       } else {
         setStatus("error");
-        toast.error(t.integrations.unreachable);
+        toast.error(result.message || t.integrations.unreachable);
       }
-    } catch (err: any) {
+    } catch (err) {
       setStatus("error");
       toast.error(
-        err?.name === "TimeoutError"
-          ? t.integrations.connectionTimedOut
-          : t.integrations.couldNotReach,
+        err instanceof ApiError ? err.message : t.integrations.couldNotReach,
       );
     }
   };
@@ -350,12 +358,14 @@ const Integrations: React.FC = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const saved = await settingsApi.saveWebhookConfig(config);
-      setConfig(saved);
-      localStorage.setItem("siem_webhook_config", JSON.stringify(saved));
+      const { apiKeySet, ...saved } = await settingsApi.saveWebhookConfig(config);
+      setApiKeyStored(apiKeySet);
+      setConfig({ ...saved, apiKey: "" });
       toast.success(t.integrations.settingsSaved);
-    } catch (err: any) {
-      toast.error(err?.message || t.integrations.failedToSave);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : t.integrations.failedToSave,
+      );
     } finally {
       setIsSaving(false);
     }
@@ -383,8 +393,10 @@ const Integrations: React.FC = () => {
           `${t.integrations.fetched} ${result.fetched} ${t.integrations.fetchedButSaved} (${result.errors} ${t.integrations.errors})`,
         );
       }
-    } catch (err: any) {
-      toast.error(err?.message || t.integrations.pullFailed);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : t.integrations.pullFailed,
+      );
     } finally {
       setIsPulling(false);
     }
@@ -410,8 +422,12 @@ const Integrations: React.FC = () => {
           `${t.integrations.autoPullStarted} (${t.integrations.every} ${autoPullInterval}s) ${t.integrations.newLogsRealtime}`,
         );
       }
-    } catch (err: any) {
-      toast.error(err?.message || t.integrations.failedToggleAutoPull);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : t.integrations.failedToggleAutoPull,
+      );
     } finally {
       setIsTogglingAutoPull(false);
     }
@@ -530,7 +546,11 @@ const Integrations: React.FC = () => {
                   type="password"
                   value={config.apiKey}
                   onChange={(e) => patch({ apiKey: e.target.value })}
-                  placeholder="siem-ingest-key-xxxxxxxx"
+                  placeholder={
+                    apiKeyStored
+                      ? t.integrations.apiKeyStored
+                      : "siem-ingest-key-xxxxxxxx"
+                  }
                   className="w-full px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:border-cyan-500 transition-colors"
                 />
               </div>
@@ -677,7 +697,7 @@ const Integrations: React.FC = () => {
                 disabled={autoPull?.running}
                 className="px-3 py-2 bg-gray-950 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500 transition-colors disabled:opacity-50"
               >
-                {[1, 5, 10, 15, 30, 60, 120].map((n) => (
+                {[10, 15, 30, 60, 120, 300].map((n) => (
                   <option key={n} value={n}>
                     {n < 60 ? `${n}s` : `${n / 60}m`}
                   </option>
@@ -687,7 +707,7 @@ const Integrations: React.FC = () => {
 
             <div className="flex-1 flex items-end">
               <button
-                onClick={handleToggleAutoPull}
+                onClick={() => void handleToggleAutoPull()}
                 disabled={isTogglingAutoPull || !config.host}
                 className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium ${
                   autoPull?.running

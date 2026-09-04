@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { TrendingUp, PieChart, BarChart as BarChartIcon, Globe } from 'lucide-react';
-import { Log } from '../types';
+import type { Log } from '../types';
 import { BarChart, Bar, LineChart, Line, PieChart as RechartsPieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -11,8 +11,14 @@ interface AnalyticsProps {
 const Analytics: React.FC<AnalyticsProps> = ({ logs }) => {
   const { t } = useLanguage();
 
-  const last24Hours = logs.filter(log => 
-    new Date(log.timestamp).getTime() > Date.now() - 24 * 3600000
+  // Read once when the page mounts. Called from the render body,
+  // `Date.now()` makes the component impure: two renders with identical props
+  // would disagree about where the window starts.
+  const [windowStart] = useState(() => Date.now() - 24 * 3600000);
+
+  const last24Hours = useMemo(
+    () => logs.filter((log) => new Date(log.timestamp).getTime() > windowStart),
+    [logs, windowStart],
   );
 
   const sourceDistribution = logs.reduce((acc, log) => {
@@ -151,7 +157,9 @@ const Analytics: React.FC<AnalyticsProps> = ({ logs }) => {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percent }: any) => `${name} (${(percent * 100).toFixed(1)}%)`}
+                label={({ name, percent }: { name?: string; percent?: number }) =>
+                  `${name ?? ""} (${((percent ?? 0) * 100).toFixed(1)}%)`
+                }
                 outerRadius={100}
                 fill="#8884d8"
                 dataKey="value"

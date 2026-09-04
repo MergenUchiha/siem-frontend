@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from "lucide-react";
 
 export type ToastType = "success" | "error" | "warning" | "info";
@@ -95,20 +95,28 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({
 export const useToast = () => {
     const [toasts, setToasts] = useState<Toast[]>([]);
 
-    const show = (message: string, type: ToastType = "info") => {
-        const id = Date.now().toString();
+    const show = useCallback((message: string, type: ToastType = "info") => {
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         setToasts((prev) => [...prev, { id, type, message }]);
-    };
+    }, []);
 
-    const remove = (id: string) =>
-        setToasts((prev) => prev.filter((t) => t.id !== id));
+    const remove = useCallback(
+        (id: string) => setToasts((prev) => prev.filter((t) => t.id !== id)),
+        [],
+    );
 
-    return {
-        toasts,
-        remove,
-        success: (msg: string) => show(msg, "success"),
-        error: (msg: string) => show(msg, "error"),
-        warning: (msg: string) => show(msg, "warning"),
-        info: (msg: string) => show(msg, "info"),
-    };
+    // Memoised so callers can list `toast` in a dependency array. Rebuilt every
+    // render, it made any effect or callback that used it restart endlessly,
+    // which is why the `exhaustive-deps` warnings here had been left alone.
+    return useMemo(
+        () => ({
+            toasts,
+            remove,
+            success: (msg: string) => show(msg, "success"),
+            error: (msg: string) => show(msg, "error"),
+            warning: (msg: string) => show(msg, "warning"),
+            info: (msg: string) => show(msg, "info"),
+        }),
+        [toasts, remove, show],
+    );
 };

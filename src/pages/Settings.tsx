@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Settings as SettingsIcon, User, Shield, Bell, Database, Save, Check, Globe, Sun, Moon } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Language } from '../i18n/i18n';
+import type { Language } from '../i18n/i18n';
 
 interface SettingsState {
   notifications: {
@@ -24,76 +24,89 @@ interface SettingsState {
   };
 }
 
+interface StoredUser {
+  name?: string;
+  email?: string;
+  role?: string;
+}
+
+interface UserProfile {
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+}
+
+const DEFAULT_SETTINGS: SettingsState = {
+  notifications: {
+    email: true,
+    slack: false,
+    push: false,
+  },
+  security: {
+    twoFactor: false,
+    sessionTimeout: 30,
+  },
+  display: {
+    refreshInterval: 5,
+    itemsPerPage: 20,
+  },
+  dataRetention: {
+    logRetention: 90,
+    incidentRetention: 365,
+  },
+};
+
+function readStored<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? ({ ...fallback, ...(JSON.parse(raw) as Partial<T>) } as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 const Settings: React.FC = () => {
   const { t, language, setLanguage } = useLanguage();
   const { theme, setTheme } = useTheme();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  
-  const [settings, setSettings] = useState<SettingsState>({
-    notifications: {
-      email: true,
-      slack: false,
-      push: false
-    },
-    security: {
-      twoFactor: false,
-      sessionTimeout: 30
-    },
-    display: {
-      refreshInterval: 5,
-      itemsPerPage: 20
-    },
-    dataRetention: {
-      logRetention: 90,
-      incidentRetention: 365
-    }
-  });
 
-  const [userProfile, setUserProfile] = useState({
-    name: user.name || 'Admin User',
-    email: user.email || 'admin@siem.local',
-    role: user.role || 'admin',
-    department: 'Security Operations'
+  // Read during the initial render instead of from an effect: setting state
+  // in an effect body paints the defaults first and then replaces them, so
+  // every visit to this page flashed the wrong values.
+  const [settings, setSettings] = useState<SettingsState>(() =>
+    readStored('app_settings', DEFAULT_SETTINGS),
+  );
+
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+    const user = readStored<StoredUser>('user', {});
+    return readStored('user_profile', {
+      name: user.name ?? '',
+      email: user.email ?? '',
+      role: user.role ?? 'viewer',
+      department: 'Security Operations',
+    });
   });
 
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    const savedSettings = localStorage.getItem('app_settings');
-    if (savedSettings) {
-      try {
-        setSettings(JSON.parse(savedSettings));
-      } catch (e) {
-        console.error('Failed to load settings:', e);
-      }
-    }
-
-    const savedProfile = localStorage.getItem('user_profile');
-    if (savedProfile) {
-      try {
-        setUserProfile(JSON.parse(savedProfile));
-      } catch (e) {
-        console.error('Failed to load profile:', e);
-      }
-    }
-  }, []);
 
   const handleSave = () => {
     localStorage.setItem('app_settings', JSON.stringify(settings));
     localStorage.setItem('user_profile', JSON.stringify(userProfile));
     
-    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    const updatedUser = {
-      ...currentUser,
-      name: userProfile.name,
-      email: userProfile.email
-    };
-    localStorage.setItem('user', JSON.stringify(updatedUser));
+    const currentUser = readStored<StoredUser>('user', {});
+    localStorage.setItem(
+      'user',
+      JSON.stringify({
+        ...currentUser,
+        name: userProfile.name,
+        email: userProfile.email,
+      }),
+    );
     
     setSaved(true);
     
-    if ((window as any).addNotification) {
-      (window as any).addNotification({
+    if (window.addNotification) {
+      window.addNotification({
         title: t.notificationTypes.settingsSaved,
         message: t.notificationTypes.settingsSavedMessage,
         type: 'info',

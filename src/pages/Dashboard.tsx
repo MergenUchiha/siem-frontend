@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Activity, AlertTriangle, Shield, CheckCircle, BarChart3, Zap, TrendingUp, Clock } from 'lucide-react';
-import { Log, Incident, DashboardMetrics } from '../types';
+import type { Log, Incident, DashboardMetrics } from '../types';
 import MetricCard from '../components/dashboard/MetricCard';
 import { analyticsApi } from '../services/api';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -24,7 +24,9 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
     threatsBlocked: 0,
     lastUpdate: new Date().toISOString()
   });
-  const [timeSeriesData, setTimeSeriesData] = useState<any[]>([]);
+  const [timeSeriesData, setTimeSeriesData] = useState<
+    Array<Record<string, unknown>>
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -237,7 +239,9 @@ const Dashboard: React.FC<DashboardProps> = ({ logs, incidents }) => {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percent }: any) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                label={({ name, percent }: { name?: string; percent?: number }) =>
+                  `${name ?? ""}: ${((percent ?? 0) * 100).toFixed(1)}%`
+                }
                 outerRadius={90}
                 fill="#8884d8"
                 dataKey="value"

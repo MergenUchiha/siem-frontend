@@ -17,6 +17,27 @@ interface Notification {
   read: boolean;
 }
 
+interface StoredUser {
+  name: string;
+  email: string;
+  role: string;
+}
+
+const FALLBACK_USER: StoredUser = {
+  name: 'User',
+  email: 'user@example.com',
+  role: 'viewer',
+};
+
+function readStoredUser(): StoredUser {
+  try {
+    const raw = localStorage.getItem('user');
+    return raw ? { ...FALLBACK_USER, ...(JSON.parse(raw) as Partial<StoredUser>) } : FALLBACK_USER;
+  } catch {
+    return FALLBACK_USER;
+  }
+}
+
 const Header: React.FC<HeaderProps> = ({ setSidebarOpen, onRefresh, onLogout }) => {
   const { t } = useLanguage();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -26,21 +47,19 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen, onRefresh, onLogout }) 
   const [showSearch, setShowSearch] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-
-  const userString = localStorage.getItem('user');
-  const user = userString ? JSON.parse(userString) : { name: 'User', email: 'user@siem.local', role: 'analyst' };
-
-  useEffect(() => {
-    const savedNotifications = localStorage.getItem('notifications');
-    if (savedNotifications) {
-      try {
-        setNotifications(JSON.parse(savedNotifications));
-      } catch (e) {
-        console.error('Failed to parse notifications:', e);
-      }
+  // Read once during the initial render rather than in an effect: setting
+  // state from an effect body renders the empty list first and then replaces
+  // it, which flashes on every mount.
+  const [notifications, setNotifications] = useState<Notification[]>(() => {
+    try {
+      const saved = localStorage.getItem('notifications');
+      return saved ? (JSON.parse(saved) as Notification[]) : [];
+    } catch {
+      return [];
     }
-  }, []);
+  });
+
+  const user = readStoredUser();
 
   useEffect(() => {
     if (notifications.length > 0) {
@@ -82,9 +101,9 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen, onRefresh, onLogout }) 
   };
 
   React.useEffect(() => {
-    (window as any).addNotification = addNotification;
+    window.addNotification = addNotification;
     return () => {
-      delete (window as any).addNotification;
+      delete window.addNotification;
     };
   }, []);
 

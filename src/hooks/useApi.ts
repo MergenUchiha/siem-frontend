@@ -20,11 +20,11 @@ export interface FetchState<T> {
     refetch: () => void;
 }
 
-export interface MutationState<T> {
+export interface MutationState<T, A extends unknown[] = unknown[]> {
     data: T | null;
     loading: boolean;
     error: string | null;
-    mutate: (...args: any[]) => Promise<T | null>;
+    mutate: (...args: A) => Promise<T | null>;
     reset: () => void;
 }
 
@@ -91,7 +91,7 @@ export function useFetch<T>(
  */
 export function useMutation<T, A extends unknown[]>(
     fn: (...args: A) => Promise<T>,
-): MutationState<T> {
+): MutationState<T, A> {
     const [data, setData] = useState<T | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);

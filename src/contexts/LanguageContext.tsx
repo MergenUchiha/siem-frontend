@@ -1,6 +1,8 @@
 // src/contexts/LanguageContext.tsx
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Language, translations, TranslationKeys } from '../i18n/i18n';
+import React, { createContext, useContext, useState } from 'react';
+import type { ReactNode } from 'react';
+import { translations } from '../i18n/i18n';
+import type { Language, TranslationKeys } from '../i18n/i18n';
 
 interface LanguageContextType {
   language: Language;

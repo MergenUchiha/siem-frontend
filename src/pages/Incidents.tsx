@@ -10,8 +10,12 @@ import {
     Edit,
     Trash2,
 } from "lucide-react";
-import { Incident } from "../types";
-import { incidentsApi } from "../services/api";
+import type { Incident } from "../types";
+import {
+    incidentsApi,
+    type IncidentStatus,
+    type SeverityLevel,
+} from "../services/api";
 import { useLanguage } from "../contexts/LanguageContext";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import { ToastContainer, useToast } from "../components/ui/Toast";
@@ -96,7 +100,7 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
         try {
             await incidentsApi.create({
                 title: fd.get("title") as string,
-                severity: fd.get("severity") as string,
+                severity: fd.get("severity") as SeverityLevel,
                 affectedSystems,
                 description: fd.get("description") as string,
                 assignedTo: (fd.get("assignedTo") as string) || undefined,
@@ -105,7 +109,6 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
             setShowCreateModal(false);
             form.reset();
             onRefresh?.();
-            // FIX: toast instead of alert()
             toast.success("Incident created successfully");
         } catch (err) {
             console.error("Failed to create incident:", err);
@@ -124,14 +127,13 @@ const Incidents: React.FC<IncidentsProps> = ({ incidents, onRefresh }) => {
 
         try {
             await incidentsApi.update(selectedIncident.id, {
-                status: (fd.get("status") as string) || undefined,
+                status: (fd.get("status") as IncidentStatus) || undefined,
                 assignedTo: (fd.get("assignedTo") as string) || undefined,
                 description: (fd.get("description") as string) || undefined,
             });
             setShowUpdateModal(false);
             setSelectedIncident(null);
             onRefresh?.();
-            // FIX: toast instead of alert()
             toast.success("Incident updated successfully");
         } catch (err) {
             console.error("Failed to update incident:", err);

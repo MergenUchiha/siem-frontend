@@ -19,7 +19,12 @@ import {
     RefreshCw,
 } from "lucide-react";
 import type { Log } from "../types";
-import { logsApi, type LogFilters } from "../services/api";
+import {
+    ApiError,
+    logsApi,
+    type LogFilters,
+    type SeverityLevel,
+} from "../services/api";
 import { useLanguage } from "../contexts/LanguageContext";
 import { ToastContainer, useToast } from "../components/ui/Toast";
 import { useDebounce } from "../hooks/useApi";
@@ -107,7 +112,9 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ onRefresh }) => {
                 page,
                 limit: LOGS_PER_PAGE,
             };
-            if (filters.severity !== "all") params.severity = filters.severity as any;
+            if (filters.severity !== "all") {
+                params.severity = filters.severity as SeverityLevel;
+            }
             if (filters.source !== "all") params.source = filters.source;
             if (debouncedSearch) params.search = debouncedSearch;
             if (filters.dateFrom) params.dateFrom = filters.dateFrom;
@@ -117,12 +124,22 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ onRefresh }) => {
             setLogs(res.data ?? []);
             setTotal(res.total);
             setTotalPages(res.totalPages);
-        } catch (err: any) {
-            toast.error(err.message ?? "Failed to load logs");
+        } catch (err) {
+            toast.error(
+                err instanceof ApiError ? err.message : "Failed to load logs",
+            );
         } finally {
             setIsLoading(false);
         }
-    }, [page, filters.severity, filters.source, debouncedSearch, filters.dateFrom, filters.dateTo]);
+    }, [
+        page,
+        filters.severity,
+        filters.source,
+        filters.dateFrom,
+        filters.dateTo,
+        debouncedSearch,
+        toast,
+    ]);
 
     // Fetch sources once on mount
     useEffect(() => {
@@ -155,7 +172,9 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ onRefresh }) => {
         try {
             // Fetch all filtered logs for export (up to 10000)
             const params: LogFilters = { limit: 10000 };
-            if (filters.severity !== "all") params.severity = filters.severity as any;
+            if (filters.severity !== "all") {
+                params.severity = filters.severity as SeverityLevel;
+            }
             if (filters.source !== "all") params.source = filters.source;
             if (debouncedSearch) params.search = debouncedSearch;
             if (filters.dateFrom) params.dateFrom = filters.dateFrom;
@@ -188,10 +207,12 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ onRefresh }) => {
             a.download = `siem-logs-${new Date().toISOString().slice(0, 10)}.csv`;
             a.click();
             URL.revokeObjectURL(url);
-        } catch (err: any) {
-            toast.error(err.message ?? "Export failed");
+        } catch (err) {
+            toast.error(
+                err instanceof ApiError ? err.message : "Export failed",
+            );
         }
-    }, [filters, debouncedSearch, t]);
+    }, [filters, debouncedSearch, t, toast]);
 
     // ── Create log modal ───────────────────────────────────────────────────────
     const [showCreate, setShowCreate] = useState(false);
@@ -204,7 +225,7 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ onRefresh }) => {
         try {
             await logsApi.create({
                 source: fd.get("source") as string,
-                severity: fd.get("severity") as any,
+                severity: fd.get("severity") as SeverityLevel,
                 message: fd.get("message") as string,
                 ip: fd.get("ip") as string,
                 action: fd.get("action") as string,
@@ -215,8 +236,10 @@ const LogsViewer: React.FC<LogsViewerProps> = ({ onRefresh }) => {
             (e.target as HTMLFormElement).reset();
             fetchLogs();
             onRefresh?.();
-        } catch (err: any) {
-            toast.error(err.message ?? "Failed to create log");
+        } catch (err) {
+            toast.error(
+                err instanceof ApiError ? err.message : "Failed to create log",
+            );
         } finally {
             setCreating(false);
         }
