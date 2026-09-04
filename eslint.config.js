@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'vite.config.js', 'vite.config.d.ts']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -18,6 +18,16 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+    },
+    rules: {
+      // A provider and its hook live in one file here, which is the usual
+      // React arrangement. The cost is that Fast Refresh does a full reload
+      // for those three files rather than a hot swap; the rule is about
+      // developer experience, not correctness.
+      'react-refresh/only-export-components': [
+        'error',
+        { allowExportNames: ['useLanguage', 'useTheme', 'useToast'] },
+      ],
     },
   },
 ])
